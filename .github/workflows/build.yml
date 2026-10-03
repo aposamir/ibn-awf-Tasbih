@@ -64,13 +64,17 @@ jobs:
       - name: Zip APK
         run: |
           cd app/build/outputs/apk/release/
-          zip TasbeehApp-release.zip *.apk
+          APK_FILE="$(find . -maxdepth 1 -type f -name '*.apk' | head -n 1)"
+          mv "$APK_FILE" ibn-awf-Tasp.apk
+          zip ibn-awf-Tasp.zip ibn-awf-Tasp.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TasbeehApp
-          path: app/build/outputs/apk/release/
+          name: ibn-awf-Tasp
+          path: |
+            app/build/outputs/apk/release/ibn-awf-Tasp.apk
+            app/build/outputs/apk/release/ibn-awf-Tasp.zip
 
       - name: Remove previous release so only the newest build remains
         if: github.event_name != 'pull_request'
