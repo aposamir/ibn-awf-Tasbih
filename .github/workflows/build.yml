@@ -22,6 +22,12 @@ on:
 permissions:
   contents: write
 
+# Only one release-producing Android build may run at a time. Rapid commits
+# previously let two jobs delete/recreate the same "latest" release concurrently.
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
