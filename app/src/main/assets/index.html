@@ -1719,6 +1719,9 @@
     bubbleResetBtn.addEventListener('click', () => {
       bubbleCount = 0;
       saveBubbleCount();
+      if(window.AndroidBridge && typeof AndroidBridge.resetNativeBubbleCount === 'function'){
+        try { AndroidBridge.resetNativeBubbleCount(); } catch(e) {}
+      }
       render();
       showToast('🔄 تم تصفير عدّاد الفقاعة فقط');
     });
