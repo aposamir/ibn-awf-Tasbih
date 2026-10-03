@@ -216,7 +216,13 @@ public class FloatingService extends Service {
                         }
                         params.x = initialX + (int) (event.getRawX() - initialTouchX);
                         params.y = initialY + (int) (event.getRawY() - initialTouchY);
-                        windowManager.updateViewLayout(floatingView, params);
+                        try {
+                            windowManager.updateViewLayout(floatingView, params);
+                        } catch (IllegalArgumentException | SecurityException e) {
+                            getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                                    .edit().putBoolean("bubble_enabled", false).apply();
+                            stopSelf();
+                        }
                         return true;
                     case MotionEvent.ACTION_UP:
                         if (isClick) {
@@ -277,9 +283,13 @@ public class FloatingService extends Service {
         super.onDestroy();
         stopPolling();
         if (floatingView != null && windowManager != null) {
-            windowManager.removeView(floatingView);
+            try {
+                windowManager.removeView(floatingView);
+            } catch (IllegalArgumentException ignored) {
+            }
         }
         floatingView = null;
+        bubbleCounter = null;
         try {
             unregisterReceiver(webReceiver);
         } catch (IllegalArgumentException e) {
