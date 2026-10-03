@@ -1188,18 +1188,24 @@
         .trim();
     }
 
-    function finalizeSetUserName(name){
+    async function finalizeSetUserName(name){
+      if(!isFirebaseReady || !deviceId){
+        showToast('❌ يلزم الاتصال بالإنترنت لحفظ الاسم');
+        return;
+      }
+      try {
+        // Do not claim success locally unless Firebase accepted the ownership write.
+        await database.ref('nameOwners/' + name + '/deviceId').set(deviceId);
+        await database.ref('nameOwners/' + name + '/lastActive').set(firebase.database.ServerValue.TIMESTAMP);
+      } catch(e) {
+        showToast('❌ لم يتم اعتماد الاسم على هذا الجهاز. استخدم الاسم من جهازه الأصلي أو اسماً مختلفاً', 5000);
+        return;
+      }
+
       currentUser = name;
       try { localStorage.setItem(USER_KEY, name); } catch(e) {}
       showUserNameBadge(name);
       showToast('✅ تم حفظ الاسم: ' + name);
-
-      if(isFirebaseReady){
-        database.ref('nameOwners/' + name + '/deviceId').set(deviceId)
-          .catch(() => { showToast('⚠️ تعذّر تسجيل الاسم في القائمة المشتركة'); });
-        database.ref('nameOwners/' + name + '/lastActive').set(Date.now());
-      }
-
       loadWeeklyManualTotal();
       loadLeaderboardFromFirebase();
       loadAllTimeTotal();
