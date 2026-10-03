@@ -84,7 +84,7 @@ jobs:
         with:
           tag_name: latest
           name: "أحدث نسخة"
-          files: app/build/outputs/apk/release/TasbeehApp-release.zip
+          files: app/build/outputs/apk/release/ibn-awf-Tasp.zip
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
