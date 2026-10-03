@@ -22,6 +22,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int OVERLAY_PERMISSION_REQ = 1000;
     private WebView webView;
+    private boolean pageReady = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,6 +61,15 @@ public class MainActivity extends AppCompatActivity {
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 return handleNavigation(url);
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if (url != null && url.startsWith("file:///android_asset/")) {
+                    pageReady = true;
+                    replayPendingBubbleTaps();
+                }
+            }
         });
 
         webView.loadUrl("file:///android_asset/index.html");
@@ -89,15 +99,19 @@ public class MainActivity extends AppCompatActivity {
     private void replayPendingBubbleTaps() {
         SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
         int pending = prefs.getInt("pending_bubble_taps", 0);
-        if (pending <= 0 || webView == null) return;
+        if (pending <= 0 || webView == null || !pageReady) return;
 
-        // Clear first. If more taps happen while replaying, the service starts
-        // a new pending batch instead of mixing them with this one.
-        prefs.edit().putInt("pending_bubble_taps", 0).apply();
         final int tapsToReplay = pending;
         webView.post(() -> webView.evaluateJavascript(
-                "javascript:(function(){for(var i=0;i<" + tapsToReplay + ";i++){androidTap();}})();",
-                null
+                "javascript:(function(){if(typeof androidTap!=='function')return false;for(var i=0;i<" + tapsToReplay + ";i++){androidTap();}return true;})()",
+                result -> {
+                    if ("true".equals(result)) {
+                        SharedPreferences latest = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+                        int nowPending = latest.getInt("pending_bubble_taps", 0);
+                        latest.edit().putInt("pending_bubble_taps", Math.max(0, nowPending - tapsToReplay)).apply();
+                        if (nowPending > tapsToReplay) replayPendingBubbleTaps();
+                    }
+                }
         ));
     }
 
@@ -113,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
     private BroadcastReceiver bubbleReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            webView.evaluateJavascript("javascript:androidTap();", null);
+            replayPendingBubbleTaps();
         }
     };
 
@@ -124,7 +138,6 @@ public class MainActivity extends AppCompatActivity {
             SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
             prefs.edit()
                     .putInt("bubble_count", count)
-                    .putBoolean("activity_ready", true)
                     .apply();
 
             Intent intent = new Intent("WEB_UPDATED");
@@ -171,8 +184,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        getSharedPreferences("bubble_prefs", MODE_PRIVATE)
-                .edit().putBoolean("activity_ready", false).apply();
+        pageReady = false;
         super.onDestroy();
         unregisterReceiver(bubbleReceiver);
     }
