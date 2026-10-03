@@ -1047,25 +1047,46 @@
       if(bubbleEnabled) reconcileBubbleMode();
     });
 
+    const PROJECT_TIME_ZONE = 'Asia/Damascus';
+
     function serverNow(){
       return new Date(Date.now() + serverTimeOffsetMs);
     }
 
+    function getDamascusDateParts(date = serverNow()){
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: PROJECT_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(date);
+      const out = {};
+      parts.forEach(part => {
+        if(part.type !== 'literal') out[part.type] = Number(part.value);
+      });
+      return { year: out.year, month: out.month, day: out.day };
+    }
+
+    // Calendar-only UTC dates are used internally so week arithmetic is immune
+    // to the phone's timezone and daylight-saving transitions.
+    function calendarDateUtc(year, month, day){
+      return new Date(Date.UTC(year, month - 1, day));
+    }
+
     function getWeekStartSaturday(date = serverNow()){
-      const d = new Date(date);
-      d.setHours(0, 0, 0, 0);
-      const day = d.getDay();
-      const diff = (day + 1) % 7;
-      d.setDate(d.getDate() - diff);
+      const p = getDamascusDateParts(date);
+      const d = calendarDateUtc(p.year, p.month, p.day);
+      const diff = (d.getUTCDay() + 1) % 7;
+      d.setUTCDate(d.getUTCDate() - diff);
       return d;
     }
 
-    function getWeekNumber(){
-      const satStart = getWeekStartSaturday();
-      const year = satStart.getFullYear();
-      const jan1 = new Date(year, 0, 1);
-      const diffToFirstSaturday = (6 - jan1.getDay() + 7) % 7;
-      const firstSaturday = new Date(year, 0, 1 + diffToFirstSaturday);
+    function getWeekNumber(date = serverNow()){
+      const satStart = getWeekStartSaturday(date);
+      const year = satStart.getUTCFullYear();
+      const jan1 = calendarDateUtc(year, 1, 1);
+      const diffToFirstSaturday = (6 - jan1.getUTCDay() + 7) % 7;
+      const firstSaturday = calendarDateUtc(year, 1, 1 + diffToFirstSaturday);
       const diffDays = Math.round((satStart - firstSaturday) / 86400000);
       let weekNum = Math.floor(diffDays / 7) + 1;
       if(weekNum < 1) weekNum = 1;
@@ -1074,7 +1095,7 @@
 
     function getCurrentWeekKey(){
       const satStart = getWeekStartSaturday();
-      return 'week_' + getWeekNumber() + '_' + satStart.getFullYear();
+      return 'week_' + getWeekNumber() + '_' + satStart.getUTCFullYear();
     }
 
     // Manual/external additions always belong to the same week currently
@@ -1108,7 +1129,12 @@
     window.addEventListener('focus', () => refreshWeekIfChanged(false));
 
     function formatDateAr(d){
-      return d.toLocaleDateString('ar-EG', { day:'2-digit', month:'2-digit', year:'numeric' });
+      return new Intl.DateTimeFormat('ar-EG', {
+        timeZone: 'UTC',
+        day:'2-digit',
+        month:'2-digit',
+        year:'numeric'
+      }).format(d);
     }
 
     function buildBeads(n){
@@ -1705,7 +1731,7 @@
         const satStart = getWeekStartSaturday();
         const friEnd = new Date(satStart);
         friEnd.setDate(friEnd.getDate() + 6);
-        weekInfo.textContent = '📅 الأسبوع ' + getWeekNumber() + ' - ' + satStart.getFullYear() +
+        weekInfo.textContent = '📅 الأسبوع ' + getWeekNumber() + ' - ' + satStart.getUTCFullYear() +
           ' (من ' + formatDateAr(satStart) + ' إلى ' + formatDateAr(friEnd) + ')';
 
         if(sorted.length === 0){
