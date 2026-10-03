@@ -147,6 +147,12 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public int getNativeBubbleCount() {
+            return getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                    .getInt("bubble_count", 0);
+        }
+
+        @JavascriptInterface
         public boolean hasOverlayPermission() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 return Settings.canDrawOverlays(MainActivity.this);
