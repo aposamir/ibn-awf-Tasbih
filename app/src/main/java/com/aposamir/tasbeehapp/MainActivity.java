@@ -153,6 +153,17 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public void resetNativeBubbleCount() {
+            getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                    .edit().putInt("bubble_count", 0).apply();
+
+            Intent intent = new Intent("WEB_UPDATED");
+            intent.setPackage(getPackageName());
+            intent.putExtra("count", 0);
+            sendBroadcast(intent);
+        }
+
+        @JavascriptInterface
         public boolean hasOverlayPermission() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 return Settings.canDrawOverlays(MainActivity.this);
