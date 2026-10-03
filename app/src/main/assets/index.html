@@ -1488,6 +1488,7 @@
       let blockedManual = 0;
       let rejectedCount = 0;
 
+      try {
       for(const item of offlineQueue){
         if(!item.weekKey || !item.user || !Number.isFinite(Number(item.value)) || Number(item.value) <= 0){
           rejectedCount++;
@@ -1527,12 +1528,13 @@
         if(offlineQueue.length) localStorage.setItem('offline_queue', JSON.stringify(offlineQueue));
         else localStorage.removeItem('offline_queue');
       } catch(e) {}
-      isSyncingQueue = false;
-
       if(syncedCount > 0) showToast('✅ تمت مزامنة ' + syncedCount + ' عملية معلقة');
       if(blockedManual > 0) showToast('⚠️ توجد إضافة يدوية معلقة تتجاوز حد أسبوعها ولم تُرسل', 5500);
       else if(offlineQueue.length > 0) showToast('⚠️ بقيت عمليات غير متزامنة محفوظة على الجهاز، ولن تضيع', 5000);
       if(rejectedCount > 0) showToast('⚠️ تم استبعاد ' + rejectedCount + ' عملية غير صالحة أو مرفوضة نهائياً', 5000);
+      } finally {
+        isSyncingQueue = false;
+      }
     }
 
     function saveToOfflineQueue(type, value, user, weekKey = getCurrentWeekKey()){
@@ -1724,9 +1726,14 @@
     try {
       const savedQueue = localStorage.getItem('offline_queue');
       if(savedQueue) {
-        offlineQueue = JSON.parse(savedQueue);
+        const parsedQueue = JSON.parse(savedQueue);
+        offlineQueue = Array.isArray(parsedQueue) ? parsedQueue : [];
+        if(!Array.isArray(parsedQueue)) localStorage.removeItem('offline_queue');
       }
-    } catch(e) {}
+    } catch(e) {
+      offlineQueue = [];
+      try { localStorage.removeItem('offline_queue'); } catch(ignore) {}
+    }
 
     function setOfflineStatus(){
       onlineIndicator.className = 'status-offline';
