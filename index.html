@@ -1279,9 +1279,35 @@
         .trim();
     }
 
+    function hasPendingWorkForCurrentUser(){
+      if(!currentUser) return false;
+
+      const queuedForCurrentUser = offlineQueue.some(item =>
+        item && item.user === currentUser && Number(item.value) > 0
+      );
+      if(queuedForCurrentUser) return true;
+
+      if(window.AndroidBridge
+          && typeof AndroidBridge.getPendingBubbleTapCount === 'function'
+          && typeof AndroidBridge.getPendingBubbleUser === 'function'){
+        try {
+          const pendingCount = Number(AndroidBridge.getPendingBubbleTapCount()) || 0;
+          const pendingUser = String(AndroidBridge.getPendingBubbleUser() || '');
+          if(pendingCount > 0 && pendingUser === currentUser) return true;
+        } catch(e) {}
+      }
+      return false;
+    }
+
     async function finalizeSetUserName(name){
       if(!isFirebaseReady || !deviceId){
         showToast('❌ يلزم الاتصال بالإنترنت لحفظ الاسم');
+        return;
+      }
+
+      if(currentUser && name !== currentUser && hasPendingWorkForCurrentUser()){
+        showToast('⚠️ توجد عمليات معلّقة باسم ' + currentUser + '. انتظر مزامنتها قبل تغيير الاسم حتى لا يبقى الرصيد عالقاً.', 6500);
+        syncOfflineQueue();
         return;
       }
       try {
