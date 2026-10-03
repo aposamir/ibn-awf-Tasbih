@@ -1299,6 +1299,26 @@
       return false;
     }
 
+    function hasPendingWorkForCurrentUser(){
+      if(!currentUser) return false;
+
+      const queuedForCurrentUser = offlineQueue.some(item =>
+        item && item.user === currentUser && Number(item.value) > 0
+      );
+      if(queuedForCurrentUser) return true;
+
+      if(window.AndroidBridge
+          && typeof AndroidBridge.getPendingBubbleTapCount === 'function'
+          && typeof AndroidBridge.getPendingBubbleUser === 'function'){
+        try {
+          const pendingCount = Number(AndroidBridge.getPendingBubbleTapCount()) || 0;
+          const pendingUser = String(AndroidBridge.getPendingBubbleUser() || '');
+          if(pendingCount > 0 && pendingUser === currentUser) return true;
+        } catch(e) {}
+      }
+      return false;
+    }
+
     async function finalizeSetUserName(name){
       if(!isFirebaseReady || !deviceId){
         showToast('❌ يلزم الاتصال بالإنترنت لحفظ الاسم');
@@ -1343,6 +1363,11 @@
       const name = sanitizeKey(userNameInput.value);
       if(!name){ showToast('❌ أدخل اسمك أولاً'); return; }
       if(name.length > 30){ showToast('❌ الاسم طويل جداً'); return; }
+      if(currentUser && name !== currentUser && hasPendingWorkForCurrentUser()){
+        userNameInput.value = currentUser;
+        showToast('⚠️ توجد ضغطات أو إضافات معلقة للاسم الحالي. انتظر مزامنتها قبل تغيير الاسم', 6000);
+        return;
+      }
 
       if(!isFirebaseReady || !deviceId){
         showToast('❌ يلزم الاتصال بالإنترنت للتحقق من الاسم قبل الحفظ');
@@ -1377,6 +1402,11 @@
         return;
       }
 
+      if(currentUser && name !== currentUser && hasPendingWorkForCurrentUser()){
+        nameOverlayInput.value = currentUser;
+        showToast('⚠️ توجد ضغطات أو إضافات معلقة للاسم الحالي. انتظر مزامنتها قبل تغيير الاسم', 6000);
+        return;
+      }
       hideNameOverlay();
       userNameInput.value = name;
       checkNameUsedBeforeAndSave(name);
