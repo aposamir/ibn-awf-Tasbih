@@ -152,6 +152,17 @@ public class FloatingService extends Service {
                         return true;
                     case MotionEvent.ACTION_UP:
                         if (isClick) {
+                            // Count natively first so the floating bubble keeps
+                            // working even while the Activity/WebView is backgrounded.
+                            count++;
+                            getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                                    .edit()
+                                    .putInt("bubble_count", count)
+                                    .apply();
+                            updateCounterText();
+
+                            // Notify the Activity when it is alive. JavaScript will
+                            // treat this as an already-counted native bubble tap.
                             Intent tapIntent = new Intent("BUBBLE_TAPPED");
                             tapIntent.setPackage(getPackageName());
                             sendBroadcast(tapIntent);
