@@ -743,7 +743,8 @@
         off(){ return r; },
         once(){ return Promise.resolve({ val(){ return null; } }); },
         set(){ return Promise.reject(new Error('offline')); },
-        transaction(){ return Promise.resolve(); }
+        update(){ return Promise.reject(new Error('offline')); },
+        transaction(){ return Promise.reject(new Error('offline')); }
       };
       return r;
     };
@@ -1314,14 +1315,20 @@
       });
     }
 
-    // isManual: true لو المصدر إضافة يدوية (يُسجَّل أيضاً بـ allTimeManualTotals
-    // كنظير لعلاقة leaderboard/weeklyManualAdditions الأسبوعية)، false لو ضغط مباشر.
-    function bumpAllTimeTotal(user, amount, isManual){
-      if(!isFirebaseReady || !user) return;
-      database.ref('allTimeTotals/' + user).transaction((v) => (v || 0) + amount);
+    // Write every counter affected by one action in ONE atomic Firebase update.
+    // Either all counters are updated, or none are. This prevents partial totals.
+    function atomicCountUpdate(user, amount, weekKey, isManual){
+      if(!isFirebaseReady || !user) return Promise.reject(new Error('offline'));
+      const inc = firebase.database.ServerValue.increment(amount);
+      const updates = {};
+      updates['totalCount'] = inc;
+      updates['leaderboard/' + weekKey + '/' + user] = inc;
+      updates['allTimeTotals/' + user] = inc;
       if(isManual){
-        database.ref('allTimeManualTotals/' + user).transaction((v) => (v || 0) + amount);
+        updates['weeklyManualAdditions/' + weekKey + '/' + user] = inc;
+        updates['allTimeManualTotals/' + user] = inc;
       }
+      return database.ref().update(updates);
     }
 
     function updateWeeklyLimitDisplay(){
@@ -1359,20 +1366,18 @@
 
       if(isFirebaseReady){
         const weekKey = getManualAdditionWeekKey();
-        const ref = database.ref('weeklyManualAdditions/' + weekKey + '/' + currentUser);
-        ref.transaction((v) => (v || 0) + val, (error, committed) => {
-          if(error) { showToast('❌ خطأ في الاتصال'); return; }
-          if(committed){
-            database.ref('totalCount').transaction((v) => (v || 0) + val);
-            database.ref('leaderboard/' + weekKey + '/' + currentUser).transaction((v) => (v || 0) + val);
-            bumpAllTimeTotal(currentUser, val, true);
-            personal += val;
-            personalSalawat += val;
-            savePersonal();
-            render();
-            showToast('✅ تمت إضافة ' + val.toLocaleString('en-US'));
-            manualInput.value = '';
-          }
+        manualAddBtn.disabled = true;
+        atomicCountUpdate(currentUser, val, weekKey, true).then(() => {
+          personal += val;
+          personalSalawat += val;
+          savePersonal();
+          render();
+          showToast('✅ تمت إضافة ' + val.toLocaleString('en-US'));
+          manualInput.value = '';
+        }).catch(() => {
+          showToast('❌ لم تُحفظ الإضافة. لم يتم تغيير أي رصيد؛ حاول مرة أخرى', 4500);
+        }).finally(() => {
+          manualAddBtn.disabled = false;
         });
       } else {
         const newTotal = currentTotal + val;
@@ -1401,57 +1406,34 @@
       });
     }
 
-    function syncOfflineQueue(){
+    async function syncOfflineQueue(){
       if(offlineQueue.length === 0 || !isFirebaseReady || isSyncingQueue) return;
       isSyncingQueue = true;
-      const queue = [...offlineQueue];
-      offlineQueue = [];
-      try { localStorage.removeItem('offline_queue'); } catch(e) {}
+      const remaining = [];
+      let syncedCount = 0;
 
-      const currentWeekKey = getCurrentWeekKey();
-      const unresolvedLegacy = [];
-      queue.forEach(item => {
-        // Never move an old offline action into a new week.
-        // Every modern queue item carries the exact week in which it happened.
-        // Legacy items without weekKey are quarantined instead of being credited
-        // to the current week, because doing that contaminates Saturday's fresh week.
-        if(!item.weekKey){
-          unresolvedLegacy.push(item);
-          return;
+      for(const item of offlineQueue){
+        if(!item.weekKey || !item.user){
+          remaining.push(item);
+          continue;
         }
-        const itemWeekKey = item.weekKey;
-        if (item.type === 'tap') {
-          database.ref('totalCount').transaction((v) => (v || 0) + item.value);
-          if (item.user) {
-            database.ref('leaderboard/' + itemWeekKey + '/' + item.user).transaction((v) => (v || 0) + item.value);
-            bumpAllTimeTotal(item.user, item.value, false);
-          }
+        try {
+          await atomicCountUpdate(item.user, item.value, item.weekKey, item.type === 'manualAdd');
+          syncedCount++;
+        } catch(e) {
+          remaining.push(item);
         }
-        else if (item.type === 'manualAdd' && item.user) {
-          const ref = database.ref('weeklyManualAdditions/' + itemWeekKey + '/' + item.user);
-          ref.transaction((currentVal) => {
-            const newVal = (currentVal || 0) + item.value;
-            if(newVal > WEEKLY_MANUAL_LIMIT) return undefined;
-            return newVal;
-          }, (error, committed) => {
-            if(committed){
-              database.ref('totalCount').transaction((v) => (v || 0) + item.value);
-              database.ref('leaderboard/' + itemWeekKey + '/' + item.user).transaction((v) => (v || 0) + item.value);
-              bumpAllTimeTotal(item.user, item.value, true);
-            }
-          });
-        }
-      });
-      // Preserve unknown legacy records locally for manual recovery, but never
-      // inject them into the newly-started week.
-      if(unresolvedLegacy.length){
-        offlineQueue = unresolvedLegacy;
-        try { localStorage.setItem('offline_queue', JSON.stringify(offlineQueue)); } catch(e) {}
-        showToast('⚠️ توجد عمليات قديمة معلقة تحتاج مراجعة، ولم تُضف إلى الأسبوع الجديد', 5000);
       }
+
+      offlineQueue = remaining;
+      try {
+        if(offlineQueue.length) localStorage.setItem('offline_queue', JSON.stringify(offlineQueue));
+        else localStorage.removeItem('offline_queue');
+      } catch(e) {}
       isSyncingQueue = false;
-      const syncedCount = queue.length - unresolvedLegacy.length;
+
       if(syncedCount > 0) showToast('✅ تمت مزامنة ' + syncedCount + ' عملية معلقة');
+      if(offlineQueue.length > 0) showToast('⚠️ بقيت عمليات غير متزامنة محفوظة على الجهاز، ولن تضيع', 5000);
     }
 
     function saveToOfflineQueue(type, value, user, weekKey = getCurrentWeekKey()){
@@ -1497,12 +1479,11 @@
 
     function hitTotal(amount = 1){
       const weekKey = getCurrentWeekKey();
-      if(isFirebaseReady){
-        database.ref('totalCount').transaction((v) => (v || 0) + amount);
-        if(currentUser) {
-          database.ref('leaderboard/' + weekKey + '/' + currentUser).transaction((v) => (v || 0) + amount);
-          bumpAllTimeTotal(currentUser, amount, false);
-        }
+      if(isFirebaseReady && currentUser){
+        atomicCountUpdate(currentUser, amount, weekKey, false).catch(() => {
+          saveToOfflineQueue('tap', amount, currentUser, weekKey);
+          showToast('📶 تعذّر الإرسال؛ تم حفظ العد محلياً للمزامنة');
+        });
       } else {
         saveToOfflineQueue('tap', amount, currentUser, weekKey);
         total += amount;
