@@ -1,10 +1,6 @@
 package com.aposamir.tasbeehapp;
 
 import android.app.Service;
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -15,7 +11,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.provider.Settings;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -26,8 +21,6 @@ import androidx.core.content.ContextCompat;
 
 public class FloatingService extends Service {
 
-    private static final String CHANNEL_ID = "tasbeeh_floating_counter";
-    private static final int NOTIFICATION_ID = 2401;
     private static final double DEFAULT_SCALE = 2.0 / 3.0;
     private static final long POLL_INTERVAL_MS = 1500;
 
@@ -48,71 +41,17 @@ public class FloatingService extends Service {
     };
 
     @Override
-    public void onCreate() {
-        super.onCreate();
-        startAsForegroundService();
-    }
-
-    private void startAsForegroundService() {
-        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "عداد المسبحة العائم",
-                    NotificationManager.IMPORTANCE_LOW
-            );
-            channel.setDescription("يبقي عداد المسبحة العائم فعالاً أثناء استخدام التطبيقات الأخرى");
-            channel.setShowBadge(false);
-            manager.createNotificationChannel(channel);
-        }
-
-        Intent openApp = new Intent(this, MainActivity.class);
-        openApp.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
-        }
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, openApp, pendingFlags);
-
-        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? new Notification.Builder(this, CHANNEL_ID)
-                : new Notification.Builder(this);
-
-        Notification notification = builder
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("مسبحة جامع عبد الرحمن بن عوف")
-                .setContentText("العداد العائم يعمل")
-                .setContentIntent(pendingIntent)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .build();
-
-        startForeground(NOTIFICATION_ID, notification);
-    }
-
-    @Override
     public IBinder onBind(Intent intent) { return null; }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // START_STICKY can recreate this service after the user has revoked
-        // overlay permission. Never call WindowManager.addView without checking.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            getSharedPreferences("bubble_prefs", MODE_PRIVATE)
-                    .edit().putBoolean("bubble_enabled", false).apply();
-            stopSelf();
-            return START_NOT_STICKY;
-        }
-
         double scale = DEFAULT_SCALE;
         if (intent != null && intent.hasExtra("scale")) {
             scale = intent.getDoubleExtra("scale", DEFAULT_SCALE);
         }
 
         if (floatingView == null) {
-            if (!createFloatingBubble(scale)) {
-                return START_NOT_STICKY;
-            }
+            createFloatingBubble(scale);
             startPolling();
         } else {
             applyScale(scale);
@@ -150,7 +89,7 @@ public class FloatingService extends Service {
         }
     }
 
-    private boolean createFloatingBubble(double scale) {
+    private void createFloatingBubble(double scale) {
         SharedPreferences prefsInit = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
         count = prefsInit.getInt("bubble_count", 0);
 
@@ -177,14 +116,7 @@ public class FloatingService extends Service {
         params.y = 100;
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        try {
-            windowManager.addView(floatingView, params);
-        } catch (SecurityException | WindowManager.BadTokenException e) {
-            floatingView = null;
-            bubbleCounter = null;
-            stopSelf();
-            return false;
-        }
+        windowManager.addView(floatingView, params);
 
         applyVisualScale(scale);
 
@@ -216,45 +148,10 @@ public class FloatingService extends Service {
                         }
                         params.x = initialX + (int) (event.getRawX() - initialTouchX);
                         params.y = initialY + (int) (event.getRawY() - initialTouchY);
-                        try {
-                            windowManager.updateViewLayout(floatingView, params);
-                        } catch (IllegalArgumentException | SecurityException e) {
-                            getSharedPreferences("bubble_prefs", MODE_PRIVATE)
-                                    .edit().putBoolean("bubble_enabled", false).apply();
-                            stopSelf();
-                        }
+                        windowManager.updateViewLayout(floatingView, params);
                         return true;
                     case MotionEvent.ACTION_UP:
                         if (isClick) {
-                            SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
-                            // Persist every native tap before notifying the WebView.
-                            // If the Activity does not exist (or the process was
-                            // recreated), the tap remains durable and is replayed
-                            // only after the local page reports that it is ready.
-                            String currentUser = prefs.getString("current_user_name", "");
-                            String pendingUser = prefs.getString("pending_bubble_user", "");
-                            int existingPending = prefs.getInt("pending_bubble_taps", 0);
-
-                            // Never create anonymous shared taps, and never mix
-                            // pending taps from two participant names.
-                            if (currentUser == null || currentUser.trim().isEmpty()) {
-                                return true;
-                            }
-                            if (existingPending > 0 && pendingUser != null
-                                    && !pendingUser.isEmpty()
-                                    && !pendingUser.equals(currentUser)) {
-                                return true;
-                            }
-
-                            int pending = existingPending + 1;
-                            count++;
-                            prefs.edit()
-                                    .putInt("pending_bubble_taps", pending)
-                                    .putString("pending_bubble_user", currentUser)
-                                    .putInt("bubble_count", count)
-                                    .apply();
-                            updateCounterText();
-
                             Intent tapIntent = new Intent("BUBBLE_TAPPED");
                             tapIntent.setPackage(getPackageName());
                             sendBroadcast(tapIntent);
@@ -264,7 +161,6 @@ public class FloatingService extends Service {
                 return false;
             }
         });
-        return true;
     }
 
     private void applyVisualScale(double scale) {
@@ -283,13 +179,9 @@ public class FloatingService extends Service {
         super.onDestroy();
         stopPolling();
         if (floatingView != null && windowManager != null) {
-            try {
-                windowManager.removeView(floatingView);
-            } catch (IllegalArgumentException ignored) {
-            }
+            windowManager.removeView(floatingView);
         }
         floatingView = null;
-        bubbleCounter = null;
         try {
             unregisterReceiver(webReceiver);
         } catch (IllegalArgumentException e) {
