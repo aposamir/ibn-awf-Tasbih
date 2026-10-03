@@ -65,11 +65,28 @@ public class MainActivity extends AppCompatActivity {
     private BroadcastReceiver bubbleReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            webView.evaluateJavascript("javascript:androidTap();", null);
+            webView.evaluateJavascript("javascript:androidBubbleTap();", null);
         }
     };
 
     public class WebAppInterface {
+
+        @JavascriptInterface
+        public int getNativeBubbleCount() {
+            SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+            return prefs.getInt("bubble_count", 0);
+        }
+
+        @JavascriptInterface
+        public void resetNativeBubbleCount() {
+            SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+            prefs.edit().putInt("bubble_count", 0).apply();
+
+            Intent intent = new Intent("WEB_UPDATED");
+            intent.setPackage(getPackageName());
+            intent.putExtra("count", 0);
+            sendBroadcast(intent);
+        }
 
         @JavascriptInterface
         public void updateCount(int count) {
