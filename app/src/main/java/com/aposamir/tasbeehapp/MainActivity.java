@@ -162,6 +162,13 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public void setCurrentUserName(String name) {
+            String safeName = name == null ? "" : name.trim();
+            getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                    .edit().putString("current_user_name", safeName).apply();
+        }
+
+        @JavascriptInterface
         public int getNativeBubbleCount() {
             return getSharedPreferences("bubble_prefs", MODE_PRIVATE)
                     .getInt("bubble_count", 0);
