@@ -1,9 +1,11 @@
 package com.aposamir.tasbeehapp;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
@@ -16,11 +18,13 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final int OVERLAY_PERMISSION_REQ = 1000;
+    private static final int NOTIFICATION_PERMISSION_REQ = 1001;
     private WebView webView;
     private boolean pageReady = false;
     private boolean bubbleReplayInProgress = false;
@@ -215,6 +219,20 @@ public class MainActivity extends AppCompatActivity {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(MainActivity.this)) {
                 return;
             }
+
+            // Android 13+ requires runtime notification permission for normal
+            // notification-drawer visibility. Refusal must not disable the
+            // foreground bubble itself.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                    && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                        MainActivity.this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        NOTIFICATION_PERMISSION_REQ
+                );
+            }
+
             getSharedPreferences("bubble_prefs", MODE_PRIVATE)
                     .edit().putBoolean("bubble_enabled", true).apply();
             Intent intent = new Intent(MainActivity.this, FloatingService.class);
