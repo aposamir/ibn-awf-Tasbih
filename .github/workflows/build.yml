@@ -1,4 +1,5 @@
 name: Build Android APK
+# Final verification build for the completed app
 
 on:
   push:
