@@ -1476,13 +1476,33 @@
 
       if(isFirebaseReady){
         const weekKey = getManualAdditionWeekKey();
-        atomicCountUpdate(currentUser, val, weekKey, true).then(() => {
-          personal += val;
-          personalSalawat += val;
-          savePersonal();
-          render();
-          showToast('✅ تمت إضافة ' + val.toLocaleString('en-US'));
-          manualInput.value = '';
+        const manualRef = database.ref('weeklyManualAdditions/' + weekKey + '/' + currentUser);
+
+        // Re-read the authoritative weekly manual total immediately before the
+        // atomic write. This catches additions made on another device that the
+        // live listener/local cache may not have observed yet.
+        manualRef.once('value').then((snap) => {
+          const serverManualTotal = Number(snap.val()) || 0;
+          weeklyManualTotal = serverManualTotal;
+          setWeeklyManualTotalLocal(serverManualTotal, weekKey);
+          updateWeeklyLimitDisplay();
+
+          if(serverManualTotal + val > WEEKLY_MANUAL_LIMIT){
+            const remaining = Math.max(0, WEEKLY_MANUAL_LIMIT - serverManualTotal);
+            showToast('❌ تجاوزت الحد الأسبوعي، المتبقي: ' + remaining.toLocaleString('en-US'));
+            manualInput.value = '';
+            return false;
+          }
+
+          return atomicCountUpdate(currentUser, val, weekKey, true).then(() => {
+            personal += val;
+            personalSalawat += val;
+            savePersonal();
+            render();
+            showToast('✅ تمت إضافة ' + val.toLocaleString('en-US'));
+            manualInput.value = '';
+            return true;
+          });
         }).catch((err) => {
           const code = String((err && err.code) || '').toLowerCase();
           if(code.includes('permission')){
