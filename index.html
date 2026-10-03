@@ -830,6 +830,7 @@
     const WEEKLY_MANUAL_LIMIT = 99999;
     let offlineQueue = [];
     let weeklyManualTotal = 0;
+    let isManualAddPending = false;
 
     // يهرّب أي نص يأتي من قاعدة بيانات مشتركة (اسم مستخدم آخر مثلاً) قبل
     // إدراجه بـ innerHTML، لمنع XSS لو احتوى الاسم وسوم HTML.
@@ -1418,22 +1419,31 @@
     }
 
     function addManualCount(){
-      if(!currentUser){ showToast('❌ سجّل اسمك أولاً'); return; }
+      if(isManualAddPending) return;
+      isManualAddPending = true;
+      manualAddBtn.disabled = true;
+
+      const finishManualAdd = () => {
+        isManualAddPending = false;
+        manualAddBtn.disabled = false;
+      };
+
+      if(!currentUser){ showToast('❌ سجّل اسمك أولاً'); finishManualAdd(); return; }
       const val = parseInt(manualInput.value, 10);
-      if(isNaN(val) || val <= 0){ showToast('❌ أدخل عدداً صحيحاً'); manualInput.value = ''; return; }
-      if(val > 99999){ showToast('❌ الحد الأقصى 99,999 في المرة'); manualInput.value = ''; return; }
+      if(isNaN(val) || val <= 0){ showToast('❌ أدخل عدداً صحيحاً'); manualInput.value = ''; finishManualAdd(); return; }
+      if(val > 99999){ showToast('❌ الحد الأقصى 99,999 في المرة'); manualInput.value = ''; finishManualAdd(); return; }
 
       let currentTotal = weeklyManualTotal;
       if(currentTotal + val > WEEKLY_MANUAL_LIMIT){
         const remaining = Math.max(0, WEEKLY_MANUAL_LIMIT - currentTotal);
         showToast('❌ تجاوزت الحد الأسبوعي، المتبقي: ' + remaining.toLocaleString('en-US'));
         manualInput.value = '';
+        finishManualAdd();
         return;
       }
 
       if(isFirebaseReady){
         const weekKey = getManualAdditionWeekKey();
-        manualAddBtn.disabled = true;
         atomicCountUpdate(currentUser, val, weekKey, true).then(() => {
           personal += val;
           personalSalawat += val;
@@ -1458,9 +1468,7 @@
               }
             }, 2500);
           }
-        }).finally(() => {
-          manualAddBtn.disabled = false;
-        });
+        }).finally(finishManualAdd);
       } else {
         const newTotal = currentTotal + val;
         setWeeklyManualTotalLocal(newTotal);
@@ -1475,6 +1483,7 @@
         render();
         showToast('📶 تم الحفظ محلياً (سيتم المزامنة تلقائياً)');
         manualInput.value = '';
+        finishManualAdd();
       }
     }
 
