@@ -808,6 +808,7 @@
     const DEVICE_ID_KEY = 'tasbeeh_device_id';
     const BUBBLE_STATE_KEY = 'tasbeeh_bubble_enabled';
     const BUBBLE_COUNT_KEY = 'tasbeeh_bubble_count';
+    const SESSION_STATE_KEY = 'tasbeeh_session_state_v1';
     let isSyncingQueue = false;
     let currentWeeklyRef = null;
     let totalRef = null;
@@ -1130,6 +1131,45 @@
       if(bubbleEnabled){ updateBubbleCountDisplay(); }
       if(bubbleEnabled && window.AndroidBridge && typeof AndroidBridge.updateCount === 'function'){
         try{ AndroidBridge.updateCount(bubbleCount); }catch(e){}
+      }
+    }
+
+    function saveSessionState(){
+      try {
+        localStorage.setItem(SESSION_STATE_KEY, JSON.stringify({
+          current,
+          cyclesThisSession,
+          activeDhikr,
+          activeTarget: isInfinite ? '∞' : activeTarget,
+          addToTotal
+        }));
+      } catch(e) {}
+    }
+
+    function loadSessionState(){
+      try {
+        const raw = localStorage.getItem(SESSION_STATE_KEY);
+        if(!raw) return false;
+        const state = JSON.parse(raw);
+        if(!state || typeof state.activeDhikr !== 'string') return false;
+
+        activeDhikr = state.activeDhikr;
+        addToTotal = state.addToTotal !== false;
+        isInfinite = state.activeTarget === '∞';
+        activeTarget = isInfinite ? Infinity : Math.max(1, parseInt(state.activeTarget, 10) || 33);
+        current = Math.max(0, parseInt(state.current, 10) || 0);
+        if(!isInfinite && current >= activeTarget) current = current % activeTarget;
+        cyclesThisSession = Math.max(0, parseInt(state.cyclesThisSession, 10) || 0);
+        buildBeads(isInfinite ? 33 : activeTarget);
+
+        [...dhikrSelect.children].forEach(chip => {
+          const sameDhikr = chip.dataset.dhikr === activeDhikr;
+          const sameTarget = String(chip.dataset.target) === (isInfinite ? '∞' : String(activeTarget));
+          chip.classList.toggle('active', sameDhikr && sameTarget);
+        });
+        return true;
+      } catch(e) {
+        return false;
       }
     }
 
@@ -1630,6 +1670,7 @@
         hitTotal(1);
       }
       incrementPersonal();
+      saveSessionState();
     }
 
     function setDhikr(dhikr, target, addTotal){
@@ -1644,6 +1685,8 @@
         buildBeads(activeTarget);
       }
       current = 0;
+      cyclesThisSession = 0;
+      saveSessionState();
       render();
     }
 
@@ -1719,6 +1762,7 @@
     resetBtn.addEventListener('click', () => {
       current = 0;
       cyclesThisSession = 0;
+      saveSessionState();
       render();
     });
     personalResetBtn.addEventListener('click', async () => {
@@ -1753,7 +1797,11 @@
     toggleLeaderboardBtn.addEventListener('click', toggleLeaderboard);
 
     deviceId = getOrCreateDeviceId();
-    setDhikr('اللهم صل على محمد وآله وسلم', '∞', 'true');
+    if(!loadSessionState()){
+      setDhikr('اللهم صل على محمد وآله وسلم', '∞', 'true');
+    } else {
+      render();
+    }
     loadPersonal();
     loadUserName();
     loadBubbleState();
