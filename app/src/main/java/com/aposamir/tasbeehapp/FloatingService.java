@@ -110,7 +110,9 @@ public class FloatingService extends Service {
         }
 
         if (floatingView == null) {
-            createFloatingBubble(scale);
+            if (!createFloatingBubble(scale)) {
+                return START_NOT_STICKY;
+            }
             startPolling();
         } else {
             applyScale(scale);
@@ -148,7 +150,7 @@ public class FloatingService extends Service {
         }
     }
 
-    private void createFloatingBubble(double scale) {
+    private boolean createFloatingBubble(double scale) {
         SharedPreferences prefsInit = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
         count = prefsInit.getInt("bubble_count", 0);
 
@@ -181,7 +183,7 @@ public class FloatingService extends Service {
             floatingView = null;
             bubbleCounter = null;
             stopSelf();
-            return;
+            return false;
         }
 
         applyVisualScale(scale);
@@ -256,6 +258,7 @@ public class FloatingService extends Service {
                 return false;
             }
         });
+        return true;
     }
 
     private void applyVisualScale(double scale) {
