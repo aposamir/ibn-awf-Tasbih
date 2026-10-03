@@ -81,6 +81,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        replayPendingBubbleTaps();
+    }
+
+    private void replayPendingBubbleTaps() {
+        SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+        int pending = prefs.getInt("pending_bubble_taps", 0);
+        if (pending <= 0 || webView == null) return;
+
+        // Clear first. If more taps happen while replaying, the service starts
+        // a new pending batch instead of mixing them with this one.
+        prefs.edit().putInt("pending_bubble_taps", 0).apply();
+        final int tapsToReplay = pending;
+        webView.post(() -> webView.evaluateJavascript(
+                "javascript:(function(){for(var i=0;i<" + tapsToReplay + ";i++){androidTap();}})();",
+                null
+        ));
+    }
+
+    @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP && event.getAction() == KeyEvent.ACTION_DOWN) {
             webView.evaluateJavascript("javascript:androidTap();", null);
@@ -101,7 +122,10 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void updateCount(int count) {
             SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
-            prefs.edit().putInt("bubble_count", count).apply();
+            prefs.edit()
+                    .putInt("bubble_count", count)
+                    .putBoolean("activity_ready", true)
+                    .apply();
 
             Intent intent = new Intent("WEB_UPDATED");
             intent.setPackage(getPackageName());
@@ -143,6 +167,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                .edit().putBoolean("activity_ready", false).apply();
         super.onDestroy();
         unregisterReceiver(bubbleReceiver);
     }
