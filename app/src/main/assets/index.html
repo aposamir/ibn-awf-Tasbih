@@ -817,8 +817,9 @@
 
     let previousScores = {};
     let isFirstLeadLoad = true;
-    // Previous display order, used to break ties: whoever reached a score
-    // first keeps the higher rank until someone exceeds it by at least 1.
+    // Previous display order keeps equal scores visually stable during
+    // the current session. Firebase stores totals, not "time reached", so
+    // previously unseen ties use a deterministic Arabic name order.
     let lastRankOrder = [];
     let activeUsersTimers = {};
 
@@ -1643,9 +1644,11 @@
         const sorted = Object.entries(data).sort((a, b) => {
           const diff = (Number(b[1]) || 0) - (Number(a[1]) || 0);
           if (diff !== 0) return diff;
-          const pa = prevPos.has(a[0]) ? prevPos.get(a[0]) : Infinity;
-          const pb = prevPos.has(b[0]) ? prevPos.get(b[0]) : Infinity;
-          return pa === pb ? 0 : (pa < pb ? -1 : 1);
+          const hasA = prevPos.has(a[0]);
+          const hasB = prevPos.has(b[0]);
+          if(hasA && hasB) return prevPos.get(a[0]) - prevPos.get(b[0]);
+          if(hasA !== hasB) return hasA ? -1 : 1;
+          return String(a[0]).localeCompare(String(b[0]), 'ar', { sensitivity:'base' });
         });
         lastRankOrder = sorted.map(([name]) => name);
 
