@@ -202,20 +202,21 @@ public class FloatingService extends Service {
                     case MotionEvent.ACTION_UP:
                         if (isClick) {
                             SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
-                            boolean activityReady = prefs.getBoolean("activity_ready", false);
-                            if (activityReady) {
-                                Intent tapIntent = new Intent("BUBBLE_TAPPED");
-                                tapIntent.setPackage(getPackageName());
-                                sendBroadcast(tapIntent);
-                            } else {
-                                int pending = prefs.getInt("pending_bubble_taps", 0) + 1;
-                                count++;
-                                prefs.edit()
-                                        .putInt("pending_bubble_taps", pending)
-                                        .putInt("bubble_count", count)
-                                        .apply();
-                                updateCounterText();
-                            }
+                            // Persist every native tap before notifying the WebView.
+                            // If the Activity does not exist (or the process was
+                            // recreated), the tap remains durable and is replayed
+                            // only after the local page reports that it is ready.
+                            int pending = prefs.getInt("pending_bubble_taps", 0) + 1;
+                            count++;
+                            prefs.edit()
+                                    .putInt("pending_bubble_taps", pending)
+                                    .putInt("bubble_count", count)
+                                    .apply();
+                            updateCounterText();
+
+                            Intent tapIntent = new Intent("BUBBLE_TAPPED");
+                            tapIntent.setPackage(getPackageName());
+                            sendBroadcast(tapIntent);
                         }
                         return true;
                 }
