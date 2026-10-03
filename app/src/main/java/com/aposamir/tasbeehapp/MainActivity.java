@@ -103,7 +103,7 @@ public class MainActivity extends AppCompatActivity {
 
         final int tapsToReplay = pending;
         webView.post(() -> webView.evaluateJavascript(
-                "javascript:(function(){if(typeof androidTap!=='function')return false;for(var i=0;i<" + tapsToReplay + ";i++){androidTap();}return true;})()",
+                "javascript:(function(){if(typeof androidBubbleTap!=='function')return false;for(var i=0;i<" + tapsToReplay + ";i++){if(androidBubbleTap()!==true)return false;}return true;})()",
                 result -> {
                     if ("true".equals(result)) {
                         SharedPreferences latest = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
