@@ -9,15 +9,18 @@
 <meta property="og:site_name" content="مسبحة جامع عبد الرحمن بن عوف">
 <meta property="og:title" content="مسبحة جامع عبد الرحمن بن عوف">
 <meta property="og:description" content="مسبحة رقمية مشتركة لأذكار وصلاة على النبي ﷺ مع عدّاد جماعي وقائمة أوائل أسبوعية">
-<meta property="og:url" content="https://aposamir.github.io/TasbeehApp/">
-<meta property="og:image" content="https://aposamir.github.io/TasbeehApp/og-image.png">
+<meta property="og:url" content="https://aposamir.github.io/ibn-awf-Tasp/">
+<meta property="og:image" content="https://aposamir.github.io/ibn-awf-Tasp/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:locale" content="ar_AR">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="manifest" href="docs/manifest.json">
+<link rel="canonical" href="https://aposamir.github.io/ibn-awf-Tasp/">
+<meta property="og:image:secure_url" content="https://aposamir.github.io/ibn-awf-Tasp/og-image.png">
+<meta property="og:image:type" content="image/png">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0E2E2C">
-<link rel="apple-touch-icon" href="docs/icon-180.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
@@ -1050,22 +1053,10 @@
       return 'week_' + getWeekNumber() + '_' + satStart.getFullYear();
     }
 
-    // External/manual weekly totals are usually reported on Saturday after
-    // the Friday-ending week has closed. Keep live taps in the new week,
-    // but credit Saturday manual additions to the week that just ended.
+    // Manual/external additions always belong to the same week currently
+    // shown in the app. This avoids Saturday being written to the previous week.
     function getManualAdditionWeekKey(){
-      const now = serverNow();
-      if(now.getDay() !== 6) return getCurrentWeekKey();
-      const previousWeek = new Date(now);
-      previousWeek.setDate(previousWeek.getDate() - 1);
-      const satStart = getWeekStartSaturday(previousWeek);
-      const year = satStart.getFullYear();
-      const jan1 = new Date(year, 0, 1);
-      const diffToFirstSaturday = (6 - jan1.getDay() + 7) % 7;
-      const firstSaturday = new Date(year, 0, 1 + diffToFirstSaturday);
-      const diffDays = Math.round((satStart - firstSaturday) / 86400000);
-      const weekNum = Math.max(1, Math.floor(diffDays / 7) + 1);
-      return 'week_' + weekNum + '_' + year;
+      return getCurrentWeekKey();
     }
 
     // Keep week-scoped Firebase listeners in sync when Saturday starts.
