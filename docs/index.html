@@ -915,6 +915,20 @@
         bubbleCount = 0;
         bubbleEnabled = false;
       }
+
+      // Android's SharedPreferences is authoritative for the native bubble
+      // because it keeps counting while the WebView is closed. Reading it here
+      // only synchronizes the display; it does NOT call tap() or alter totals.
+      if(window.AndroidBridge && typeof AndroidBridge.getNativeBubbleCount === 'function'){
+        try {
+          const nativeCount = Number(AndroidBridge.getNativeBubbleCount());
+          if(Number.isFinite(nativeCount) && nativeCount >= 0){
+            bubbleCount = nativeCount;
+            saveBubbleCount();
+          }
+        } catch(e) {}
+      }
+
       bubbleType = '';
       // Do not call hideAllBubbleUI() here: on Android that would stop an
       // already-running overlay service while the page is merely restoring.
