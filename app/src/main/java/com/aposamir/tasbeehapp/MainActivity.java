@@ -23,6 +23,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int OVERLAY_PERMISSION_REQ = 1000;
     private WebView webView;
     private boolean pageReady = false;
+    private boolean bubbleReplayInProgress = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -97,10 +98,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void replayPendingBubbleTaps() {
+        if (bubbleReplayInProgress || webView == null || !pageReady) return;
+
         SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
         int pending = prefs.getInt("pending_bubble_taps", 0);
-        if (pending <= 0 || webView == null || !pageReady) return;
+        if (pending <= 0) return;
 
+        bubbleReplayInProgress = true;
         final int tapsToReplay = pending;
         webView.post(() -> webView.evaluateJavascript(
                 "javascript:(function(){if(typeof androidBubbleTap!=='function')return false;for(var i=0;i<" + tapsToReplay + ";i++){if(androidBubbleTap()!==true)return false;}return true;})()",
@@ -109,7 +113,12 @@ public class MainActivity extends AppCompatActivity {
                         SharedPreferences latest = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
                         int nowPending = latest.getInt("pending_bubble_taps", 0);
                         latest.edit().putInt("pending_bubble_taps", Math.max(0, nowPending - tapsToReplay)).apply();
-                        if (nowPending > tapsToReplay) replayPendingBubbleTaps();
+                    }
+                    bubbleReplayInProgress = false;
+
+                    SharedPreferences latest = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+                    if (latest.getInt("pending_bubble_taps", 0) > 0) {
+                        replayPendingBubbleTaps();
                     }
                 }
         ));
