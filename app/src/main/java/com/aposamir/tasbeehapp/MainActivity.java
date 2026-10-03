@@ -114,33 +114,45 @@ public class MainActivity extends AppCompatActivity {
         if (pendingUser == null || pendingUser.isEmpty()) return;
 
         bubbleReplayInProgress = true;
-        final int tapsToReplay = pending;
-        final String expectedUserJson = org.json.JSONObject.quote(pendingUser);
-        webView.post(() -> webView.evaluateJavascript(
-                "javascript:(function(){if(typeof androidBubbleTap!=='function'||typeof getCurrentParticipantName!=='function')return false;if(getCurrentParticipantName()!==" + expectedUserJson + ")return false;for(var i=0;i<" + tapsToReplay + ";i++){if(androidBubbleTap()!==true)return false;}return true;})()",
-                result -> {
-                    if ("true".equals(result)) {
-                        SharedPreferences latest = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
-                        int nowPending = latest.getInt("pending_bubble_taps", 0);
-                        int remainingPending = Math.max(0, nowPending - tapsToReplay);
-                        SharedPreferences.Editor editor = latest.edit().putInt("pending_bubble_taps", remainingPending);
-                        if (remainingPending == 0) editor.remove("pending_bubble_user");
-                        editor.apply();
-                    }
-                    bubbleReplayInProgress = false;
+        replayOnePendingBubbleTap(pendingUser);
+    }
 
-                    // Only continue immediately after a successful batch. If
-                    // JavaScript rejected it (for example, no participant name
-                    // is registered yet), keep the taps durable and wait for a
-                    // later lifecycle/broadcast event instead of spinning.
-                    if ("true".equals(result)) {
-                        SharedPreferences latest = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
-                        if (latest.getInt("pending_bubble_taps", 0) > 0) {
-                            replayPendingBubbleTaps();
-                        }
-                    }
+    private void replayOnePendingBubbleTap(String expectedUser) {
+        if (webView == null || !pageReady) {
+            bubbleReplayInProgress = false;
+            return;
+        }
+
+        final String expectedUserJson = org.json.JSONObject.quote(expectedUser);
+        String script =
+                "javascript:(async function(){" +
+                "if(typeof androidBubbleTapAsync!=='function'||typeof getCurrentParticipantName!=='function')return false;" +
+                "if(getCurrentParticipantName()!==" + expectedUserJson + ")return false;" +
+                "return (await androidBubbleTapAsync())===true;" +
+                "})()";
+
+        webView.post(() -> webView.evaluateJavascript(script, result -> {
+            if (!"true".equals(result)) {
+                bubbleReplayInProgress = false;
+                return;
+            }
+
+            SharedPreferences latest = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+            int nowPending = latest.getInt("pending_bubble_taps", 0);
+            int remainingPending = Math.max(0, nowPending - 1);
+            SharedPreferences.Editor editor = latest.edit().putInt("pending_bubble_taps", remainingPending);
+            if (remainingPending == 0) editor.remove("pending_bubble_user");
+            editor.apply();
+
+            if (remainingPending > 0) {
+                String owner = latest.getString("pending_bubble_user", "");
+                if (owner != null && owner.equals(expectedUser)) {
+                    replayOnePendingBubbleTap(expectedUser);
+                    return;
                 }
-        ));
+            }
+            bubbleReplayInProgress = false;
+        }));
     }
 
     @Override
