@@ -1730,7 +1730,7 @@
 
         const satStart = getWeekStartSaturday();
         const friEnd = new Date(satStart);
-        friEnd.setDate(friEnd.getDate() + 6);
+        friEnd.setUTCDate(friEnd.getUTCDate() + 6);
         weekInfo.textContent = '📅 الأسبوع ' + getWeekNumber() + ' - ' + satStart.getUTCFullYear() +
           ' (من ' + formatDateAr(satStart) + ' إلى ' + formatDateAr(friEnd) + ')';
 
