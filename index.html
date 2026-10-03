@@ -1500,13 +1500,17 @@
     async function syncOfflineQueue(){
       if(offlineQueue.length === 0 || !isFirebaseReady || isSyncingQueue) return;
       isSyncingQueue = true;
+      // Process only the items that existed when this sync started. New taps can
+      // arrive while the awaits below are running; they must remain in the live
+      // queue instead of being overwritten at the end of this batch.
+      const batch = offlineQueue.slice();
       const remaining = [];
       let syncedCount = 0;
       let blockedManual = 0;
       let rejectedCount = 0;
 
       try {
-      for(const item of offlineQueue){
+      for(const item of batch){
         if(!item.weekKey || !item.user || !Number.isFinite(Number(item.value)) || Number(item.value) <= 0){
           rejectedCount++;
           continue;
@@ -1540,7 +1544,9 @@
         }
       }
 
-      offlineQueue = remaining;
+      // Preserve anything appended while this batch was synchronizing.
+      const appendedDuringSync = offlineQueue.slice(batch.length);
+      offlineQueue = remaining.concat(appendedDuringSync);
       try {
         if(offlineQueue.length) localStorage.setItem('offline_queue', JSON.stringify(offlineQueue));
         else localStorage.removeItem('offline_queue');
