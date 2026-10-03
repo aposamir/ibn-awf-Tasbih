@@ -1410,17 +1410,40 @@
       isSyncingQueue = true;
       const remaining = [];
       let syncedCount = 0;
+      let blockedManual = 0;
+      let rejectedCount = 0;
 
       for(const item of offlineQueue){
-        if(!item.weekKey || !item.user){
-          remaining.push(item);
+        if(!item.weekKey || !item.user || !Number.isFinite(Number(item.value)) || Number(item.value) <= 0){
+          rejectedCount++;
           continue;
         }
+
         try {
-          await atomicCountUpdate(item.user, item.value, item.weekKey, item.type === 'manualAdd');
+          // An offline manual addition belongs to the week in which it was made.
+          // Re-read that exact week's server total before replaying it, so a stale
+          // local cache or another device cannot silently push it over 99,999.
+          if(item.type === 'manualAdd'){
+            const manualRef = database.ref('weeklyManualAdditions/' + item.weekKey + '/' + item.user);
+            const snap = await manualRef.once('value');
+            const serverManual = Number(snap.val()) || 0;
+            if(serverManual + Number(item.value) > WEEKLY_MANUAL_LIMIT){
+              remaining.push(item);
+              blockedManual++;
+              continue;
+            }
+          }
+
+          await atomicCountUpdate(item.user, Number(item.value), item.weekKey, item.type === 'manualAdd');
           syncedCount++;
         } catch(e) {
-          remaining.push(item);
+          const code = String((e && e.code) || '').toLowerCase();
+          if(code.includes('permission')){
+            // Retrying a permanent rules rejection forever only traps the queue.
+            rejectedCount++;
+          } else {
+            remaining.push(item);
+          }
         }
       }
 
@@ -1432,7 +1455,9 @@
       isSyncingQueue = false;
 
       if(syncedCount > 0) showToast('✅ تمت مزامنة ' + syncedCount + ' عملية معلقة');
-      if(offlineQueue.length > 0) showToast('⚠️ بقيت عمليات غير متزامنة محفوظة على الجهاز، ولن تضيع', 5000);
+      if(blockedManual > 0) showToast('⚠️ توجد إضافة يدوية معلقة تتجاوز حد أسبوعها ولم تُرسل', 5500);
+      else if(offlineQueue.length > 0) showToast('⚠️ بقيت عمليات غير متزامنة محفوظة على الجهاز، ولن تضيع', 5000);
+      if(rejectedCount > 0) showToast('⚠️ تم استبعاد ' + rejectedCount + ' عملية غير صالحة أو مرفوضة نهائياً', 5000);
     }
 
     function saveToOfflineQueue(type, value, user, weekKey = getCurrentWeekKey()){
