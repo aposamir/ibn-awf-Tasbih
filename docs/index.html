@@ -1265,15 +1265,8 @@
         const usedByAnotherDevice = savedDevice && savedDevice !== deviceId;
 
         if(usedByAnotherDevice){
-          const ok = await customConfirm(
-            '⚠️ الاسم "' + name + '" محفوظ مسبقاً من جهاز آخر.\n\n' +
-            'إن كنت متأكداً أنه أنت، اضغط "موافق" للمتابعة.\n' +
-            'إن لم تكن متأكداً، اضغط "إلغاء" وعدّل الاسم (مثلاً أضف رقماً).'
-          );
-          if(!ok){
-            showToast('❌ تم الإلغاء، جرّب تعديل الاسم');
-            return;
-          }
+          showToast('⚠️ هذا الاسم مرتبط بجهاز آخر. استخدم اسماً مختلفاً لتجنب دمج أرصدة شخصين', 5500);
+          return;
         }
 
         finalizeSetUserName(name);
@@ -1294,7 +1287,7 @@
         currentWeeklyRef = database.ref('weeklyManualAdditions/' + weekKey + '/' + currentUser);
         currentWeeklyRef.on('value', (snap) => {
           weeklyManualTotal = snap.val() || 0;
-          setWeeklyManualTotalLocal(weeklyManualTotal);
+          setWeeklyManualTotalLocal(weeklyManualTotal, weekKey);
           updateWeeklyLimitDisplay();
         });
       } else {
@@ -1342,16 +1335,16 @@
       weeklyLimitInfo.textContent = 'المتبقي لهذا الأسبوع: ' + remaining.toLocaleString('en-US');
     }
 
-    function getWeeklyManualTotalFromLocal(){
+    function getWeeklyManualTotalFromLocal(weekKey = getManualAdditionWeekKey()){
       try {
-        const key = 'weekly_manual_' + getManualAdditionWeekKey() + '_' + currentUser;
+        const key = 'weekly_manual_' + weekKey + '_' + currentUser;
         return parseInt(localStorage.getItem(key), 10) || 0;
       } catch(e){ return 0; }
     }
 
-    function setWeeklyManualTotalLocal(value){
+    function setWeeklyManualTotalLocal(value, weekKey = getManualAdditionWeekKey()){
       try {
-        const key = 'weekly_manual_' + getManualAdditionWeekKey() + '_' + currentUser;
+        const key = 'weekly_manual_' + weekKey + '_' + currentUser;
         localStorage.setItem(key, String(value));
       } catch(e) {}
     }
