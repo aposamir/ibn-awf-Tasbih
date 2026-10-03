@@ -1618,6 +1618,7 @@
 
     function loadLeaderboardFromFirebase(){
       const weekKey = getCurrentWeekKey();
+      activeWeekKey = weekKey;
       if(leadRef) leadRef.off();
       leadRef = database.ref('leaderboard/' + weekKey);
       leadRef.on('value', (s) => {
