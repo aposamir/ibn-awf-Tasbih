@@ -152,9 +152,21 @@ public class FloatingService extends Service {
                         return true;
                     case MotionEvent.ACTION_UP:
                         if (isClick) {
-                            Intent tapIntent = new Intent("BUBBLE_TAPPED");
-                            tapIntent.setPackage(getPackageName());
-                            sendBroadcast(tapIntent);
+                            SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+                            boolean activityReady = prefs.getBoolean("activity_ready", false);
+                            if (activityReady) {
+                                Intent tapIntent = new Intent("BUBBLE_TAPPED");
+                                tapIntent.setPackage(getPackageName());
+                                sendBroadcast(tapIntent);
+                            } else {
+                                int pending = prefs.getInt("pending_bubble_taps", 0) + 1;
+                                count++;
+                                prefs.edit()
+                                        .putInt("pending_bubble_taps", pending)
+                                        .putInt("bubble_count", count)
+                                        .apply();
+                                updateCounterText();
+                            }
                         }
                         return true;
                 }
