@@ -45,18 +45,12 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
-            echo "Using the fixed signing key from the KEYSTORE_BASE64 secret"
-          else
-            echo "::warning::KEYSTORE_BASE64 secret is not set - signing with a new random key, so this APK cannot be installed over a previous version"
-            keytool -genkeypair -v \
-              -keystore app/release.keystore \
-              -alias tasbeehapp \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass android -keypass android \
-              -dname "CN=TasbeehApp, OU=Dev, O=aposamir, L=City, ST=State, C=SA"
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 secret is missing. Refusing to build a release with a different signing key."
+            exit 1
           fi
+          echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
+          echo "Using the fixed signing key from the KEYSTORE_BASE64 secret"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
