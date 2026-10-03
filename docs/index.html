@@ -1053,22 +1053,10 @@
       return 'week_' + getWeekNumber() + '_' + satStart.getFullYear();
     }
 
-    // External/manual weekly totals are usually reported on Saturday after
-    // the Friday-ending week has closed. Keep live taps in the new week,
-    // but credit Saturday manual additions to the week that just ended.
+    // Manual/external additions always belong to the same week currently
+    // shown in the app. This avoids Saturday being written to the previous week.
     function getManualAdditionWeekKey(){
-      const now = serverNow();
-      if(now.getDay() !== 6) return getCurrentWeekKey();
-      const previousWeek = new Date(now);
-      previousWeek.setDate(previousWeek.getDate() - 1);
-      const satStart = getWeekStartSaturday(previousWeek);
-      const year = satStart.getFullYear();
-      const jan1 = new Date(year, 0, 1);
-      const diffToFirstSaturday = (6 - jan1.getDay() + 7) % 7;
-      const firstSaturday = new Date(year, 0, 1 + diffToFirstSaturday);
-      const diffDays = Math.round((satStart - firstSaturday) / 86400000);
-      const weekNum = Math.max(1, Math.floor(diffDays / 7) + 1);
-      return 'week_' + weekNum + '_' + year;
+      return getCurrentWeekKey();
     }
 
     // Keep week-scoped Firebase listeners in sync when Saturday starts.
