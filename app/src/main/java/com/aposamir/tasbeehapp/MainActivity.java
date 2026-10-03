@@ -24,6 +24,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private boolean pageReady = false;
     private boolean bubbleReplayInProgress = false;
+    private boolean bubbleReceiverRegistered = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +85,7 @@ public class MainActivity extends AppCompatActivity {
                 new IntentFilter("BUBBLE_TAPPED"),
                 ContextCompat.RECEIVER_NOT_EXPORTED
         );
+        bubbleReceiverRegistered = true;
     }
 
     @Override
@@ -232,6 +234,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         pageReady = false;
         super.onDestroy();
-        unregisterReceiver(bubbleReceiver);
+        if (bubbleReceiverRegistered) {
+            try {
+                unregisterReceiver(bubbleReceiver);
+            } catch (IllegalArgumentException ignored) {
+            }
+            bubbleReceiverRegistered = false;
+        }
     }
 }
