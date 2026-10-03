@@ -206,10 +206,26 @@ public class FloatingService extends Service {
                             // If the Activity does not exist (or the process was
                             // recreated), the tap remains durable and is replayed
                             // only after the local page reports that it is ready.
-                            int pending = prefs.getInt("pending_bubble_taps", 0) + 1;
+                            String currentUser = prefs.getString("current_user_name", "");
+                            String pendingUser = prefs.getString("pending_bubble_user", "");
+                            int existingPending = prefs.getInt("pending_bubble_taps", 0);
+
+                            // Never create anonymous shared taps, and never mix
+                            // pending taps from two participant names.
+                            if (currentUser == null || currentUser.trim().isEmpty()) {
+                                return true;
+                            }
+                            if (existingPending > 0 && pendingUser != null
+                                    && !pendingUser.isEmpty()
+                                    && !pendingUser.equals(currentUser)) {
+                                return true;
+                            }
+
+                            int pending = existingPending + 1;
                             count++;
                             prefs.edit()
                                     .putInt("pending_bubble_taps", pending)
+                                    .putString("pending_bubble_user", currentUser)
                                     .putInt("bubble_count", count)
                                     .apply();
                             updateCounterText();
