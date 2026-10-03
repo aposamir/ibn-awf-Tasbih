@@ -194,6 +194,19 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public int getPendingBubbleTapCount() {
+            return getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                    .getInt("pending_bubble_taps", 0);
+        }
+
+        @JavascriptInterface
+        public String getPendingBubbleUser() {
+            String user = getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                    .getString("pending_bubble_user", "");
+            return user == null ? "" : user;
+        }
+
+        @JavascriptInterface
         public int getNativeBubbleCount() {
             return getSharedPreferences("bubble_prefs", MODE_PRIVATE)
                     .getInt("bubble_count", 0);
