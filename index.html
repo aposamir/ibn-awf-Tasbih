@@ -1497,12 +1497,33 @@
       });
     }
 
+    function createOfflineOperationId(){
+      try {
+        if(window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+      } catch(e) {}
+      return 'op_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 12);
+    }
+
+    function ensureOfflineOperationIds(){
+      let changed = false;
+      offlineQueue.forEach(item => {
+        if(item && !item.id){
+          item.id = createOfflineOperationId();
+          changed = true;
+        }
+      });
+      if(changed){
+        try { localStorage.setItem('offline_queue', JSON.stringify(offlineQueue)); } catch(e) {}
+      }
+    }
+
     async function syncOfflineQueue(){
       if(offlineQueue.length === 0 || !isFirebaseReady || isSyncingQueue) return;
       isSyncingQueue = true;
       // Process only the items that existed when this sync started. New taps can
       // arrive while the awaits below are running; they must remain in the live
       // queue instead of being overwritten at the end of this batch.
+      ensureOfflineOperationIds();
       const batch = offlineQueue.slice();
       const remaining = [];
       let syncedCount = 0;
@@ -1544,8 +1565,10 @@
         }
       }
 
-      // Preserve anything appended while this batch was synchronizing.
-      const appendedDuringSync = offlineQueue.slice(batch.length);
+      // Preserve anything appended while this batch was synchronizing by
+      // stable operation id, not by array position.
+      const batchIds = new Set(batch.map(item => item.id));
+      const appendedDuringSync = offlineQueue.filter(item => !batchIds.has(item.id));
       offlineQueue = remaining.concat(appendedDuringSync);
       try {
         if(offlineQueue.length) localStorage.setItem('offline_queue', JSON.stringify(offlineQueue));
@@ -1561,11 +1584,14 @@
     }
 
     function saveToOfflineQueue(type, value, user, weekKey = getCurrentWeekKey()){
+      const numericValue = Number(value);
+      if(!Number.isFinite(numericValue) || numericValue <= 0) return;
+      ensureOfflineOperationIds();
       const last = offlineQueue[offlineQueue.length - 1];
-      if(type === 'tap' && last && last.type === 'tap' && last.user === user && last.weekKey === weekKey && last.value + value <= 99999){
-        last.value += value;
+      if(type === 'tap' && last && last.type === 'tap' && last.user === user && last.weekKey === weekKey && Number(last.value) + numericValue <= 99999){
+        last.value = Number(last.value) + numericValue;
       } else {
-        offlineQueue.push({type, value, user, weekKey});
+        offlineQueue.push({id:createOfflineOperationId(), type, value:numericValue, user, weekKey});
       }
       try {
         localStorage.setItem('offline_queue', JSON.stringify(offlineQueue));
@@ -1758,6 +1784,7 @@
         const parsedQueue = JSON.parse(savedQueue);
         offlineQueue = Array.isArray(parsedQueue) ? parsedQueue : [];
         if(!Array.isArray(parsedQueue)) localStorage.removeItem('offline_queue');
+        else ensureOfflineOperationIds();
       }
     } catch(e) {
       offlineQueue = [];
