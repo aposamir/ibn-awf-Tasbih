@@ -156,7 +156,7 @@ public class MainActivity extends AppCompatActivity {
             }
             Intent intent = new Intent(MainActivity.this, FloatingService.class);
             intent.putExtra("scale", scale);
-            startService(intent);
+            ContextCompat.startForegroundService(MainActivity.this, intent);
         }
 
         @JavascriptInterface
