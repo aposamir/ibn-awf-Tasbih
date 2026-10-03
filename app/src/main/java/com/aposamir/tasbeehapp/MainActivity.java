@@ -116,9 +116,15 @@ public class MainActivity extends AppCompatActivity {
                     }
                     bubbleReplayInProgress = false;
 
-                    SharedPreferences latest = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
-                    if (latest.getInt("pending_bubble_taps", 0) > 0) {
-                        replayPendingBubbleTaps();
+                    // Only continue immediately after a successful batch. If
+                    // JavaScript rejected it (for example, no participant name
+                    // is registered yet), keep the taps durable and wait for a
+                    // later lifecycle/broadcast event instead of spinning.
+                    if ("true".equals(result)) {
+                        SharedPreferences latest = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+                        if (latest.getInt("pending_bubble_taps", 0) > 0) {
+                            replayPendingBubbleTaps();
+                        }
                     }
                 }
         ));
