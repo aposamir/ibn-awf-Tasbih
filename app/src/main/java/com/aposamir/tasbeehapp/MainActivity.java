@@ -154,6 +154,8 @@ public class MainActivity extends AppCompatActivity {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(MainActivity.this)) {
                 return;
             }
+            getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                    .edit().putBoolean("bubble_enabled", true).apply();
             Intent intent = new Intent(MainActivity.this, FloatingService.class);
             intent.putExtra("scale", scale);
             ContextCompat.startForegroundService(MainActivity.this, intent);
@@ -161,6 +163,8 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void hideBubble() {
+            getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                    .edit().putBoolean("bubble_enabled", false).apply();
             stopService(new Intent(MainActivity.this, FloatingService.class));
         }
     }
