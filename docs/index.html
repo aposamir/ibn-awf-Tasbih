@@ -1234,6 +1234,9 @@
         const s = localStorage.getItem(USER_KEY);
         if(s){
           currentUser = s;
+          if(window.AndroidBridge && typeof AndroidBridge.setCurrentUserName === 'function'){
+            try { AndroidBridge.setCurrentUserName(s); } catch(e) {}
+          }
           userNameInput.value = s;
           showUserNameBadge(s);
         }
@@ -1270,6 +1273,9 @@
       if(allTimeTotalRef){ allTimeTotalRef.off(); allTimeTotalRef = null; }
 
       currentUser = name;
+      if(window.AndroidBridge && typeof AndroidBridge.setCurrentUserName === 'function'){
+        try { AndroidBridge.setCurrentUserName(name); } catch(e) {}
+      }
       weeklyManualTotal = 0;
       allTimeTotalValue.textContent = '0';
       try { localStorage.setItem(USER_KEY, name); } catch(e) {}
