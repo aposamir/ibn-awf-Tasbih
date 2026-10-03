@@ -910,13 +910,19 @@
     function loadBubbleState(){
       try {
         bubbleCount = parseInt(localStorage.getItem(BUBBLE_COUNT_KEY), 10) || 0;
+        bubbleEnabled = localStorage.getItem(BUBBLE_STATE_KEY) === '1';
       } catch(e){
         bubbleCount = 0;
+        bubbleEnabled = false;
       }
-      bubbleEnabled = false;
       bubbleType = '';
-      hideAllBubbleUI();
+      // Do not call hideAllBubbleUI() here: on Android that would stop an
+      // already-running overlay service while the page is merely restoring.
+      hideInAppBubbleUI();
       updateBubbleButtons();
+      if(bubbleEnabled){
+        reconcileBubbleMode();
+      }
     }
 
     function updateBubbleCountDisplay(){
