@@ -223,9 +223,12 @@ public class MainActivity extends AppCompatActivity {
             // Android 13+ requires runtime notification permission for normal
             // notification-drawer visibility. Refusal must not disable the
             // foreground bubble itself.
+            SharedPreferences bubblePrefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                     && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
+                    != PackageManager.PERMISSION_GRANTED
+                    && !bubblePrefs.getBoolean("notification_permission_requested", false)) {
+                bubblePrefs.edit().putBoolean("notification_permission_requested", true).apply();
                 ActivityCompat.requestPermissions(
                         MainActivity.this,
                         new String[]{Manifest.permission.POST_NOTIFICATIONS},
@@ -233,7 +236,7 @@ public class MainActivity extends AppCompatActivity {
                 );
             }
 
-            getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+            bubblePrefs
                     .edit().putBoolean("bubble_enabled", true).apply();
             Intent intent = new Intent(MainActivity.this, FloatingService.class);
             intent.putExtra("scale", scale);
