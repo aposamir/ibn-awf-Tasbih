@@ -95,6 +95,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == OVERLAY_PERMISSION_REQ && webView != null && pageReady) {
+            webView.evaluateJavascript(
+                    "javascript:(function(){if(typeof reconcileBubbleMode==='function')reconcileBubbleMode();})()",
+                    null
+            );
+        }
     }
 
     @Override
