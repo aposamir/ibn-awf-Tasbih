@@ -1726,10 +1726,18 @@
       }
     }
 
-    function tap(){
-      if(addToTotal && !currentUser){ showToast('❌ سجّل اسمك أولاً للمشاركة في عدّ الصلاة على النبي ﷺ المشترك'); return; }
+    function tap(nativeBubbleAlreadyCounted = false){
+      if(addToTotal && !currentUser){ showToast('❌ سجّل اسمك أولاً للمشاركة في عدّ الصلاة على النبي ﷺ المشترك'); return false; }
       current++;
-      bubbleCount++;
+
+      if(nativeBubbleAlreadyCounted && window.AndroidBridge && typeof AndroidBridge.getNativeBubbleCount === 'function'){
+        try {
+          const nativeCount = Number(AndroidBridge.getNativeBubbleCount());
+          if(Number.isFinite(nativeCount) && nativeCount >= 0) bubbleCount = nativeCount;
+        } catch(e) {}
+      } else {
+        bubbleCount++;
+      }
       saveBubbleCount();
       vibrate(12);
 
@@ -1745,6 +1753,7 @@
       }
       incrementPersonal();
       saveSessionState();
+      return true;
     }
 
     function setDhikr(dhikr, target, addTotal){
@@ -1902,7 +1911,11 @@
       }
     } catch(e) {}
 
-    window.androidTap = tap;
+    // Volume-key/in-app taps use normal counting. Native overlay taps have
+    // already incremented bubble_count in FloatingService, so replay them
+    // without incrementing the bubble display a second time.
+    window.androidTap = () => tap(false);
+    window.androidBubbleTap = () => tap(true);
   })();
 </script>
 </body>
