@@ -104,15 +104,22 @@ public class MainActivity extends AppCompatActivity {
         int pending = prefs.getInt("pending_bubble_taps", 0);
         if (pending <= 0) return;
 
+        String pendingUser = prefs.getString("pending_bubble_user", "");
+        if (pendingUser == null || pendingUser.isEmpty()) return;
+
         bubbleReplayInProgress = true;
         final int tapsToReplay = pending;
+        final String expectedUserJson = org.json.JSONObject.quote(pendingUser);
         webView.post(() -> webView.evaluateJavascript(
-                "javascript:(function(){if(typeof androidBubbleTap!=='function')return false;for(var i=0;i<" + tapsToReplay + ";i++){if(androidBubbleTap()!==true)return false;}return true;})()",
+                "javascript:(function(){if(typeof androidBubbleTap!=='function'||typeof getCurrentParticipantName!=='function')return false;if(getCurrentParticipantName()!==" + expectedUserJson + ")return false;for(var i=0;i<" + tapsToReplay + ";i++){if(androidBubbleTap()!==true)return false;}return true;})()",
                 result -> {
                     if ("true".equals(result)) {
                         SharedPreferences latest = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
                         int nowPending = latest.getInt("pending_bubble_taps", 0);
-                        latest.edit().putInt("pending_bubble_taps", Math.max(0, nowPending - tapsToReplay)).apply();
+                        int remainingPending = Math.max(0, nowPending - tapsToReplay);
+                        SharedPreferences.Editor editor = latest.edit().putInt("pending_bubble_taps", remainingPending);
+                        if (remainingPending == 0) editor.remove("pending_bubble_user");
+                        editor.apply();
                     }
                     bubbleReplayInProgress = false;
 
