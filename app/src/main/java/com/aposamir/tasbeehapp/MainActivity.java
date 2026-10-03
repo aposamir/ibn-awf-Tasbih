@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.KeyEvent;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -31,11 +32,37 @@ public class MainActivity extends AppCompatActivity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
-        webView.setWebViewClient(new WebViewClient());
+
+        // Expose the native bridge before the local app starts executing.
+        webView.addJavascriptInterface(new WebAppInterface(), "AndroidBridge");
+
+        // Never load arbitrary external pages inside the WebView that owns
+        // AndroidBridge. External navigation is handed to the system browser.
+        webView.setWebViewClient(new WebViewClient() {
+            private boolean handleNavigation(String url) {
+                if (url == null || url.startsWith("file:///android_asset/")) {
+                    return false;
+                }
+                try {
+                    Intent external = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    startActivity(external);
+                } catch (Exception ignored) {
+                }
+                return true;
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return handleNavigation(request.getUrl().toString());
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return handleNavigation(url);
+            }
+        });
 
         webView.loadUrl("file:///android_asset/index.html");
-
-        webView.addJavascriptInterface(new WebAppInterface(), "AndroidBridge");
 
         // RECEIVER_NOT_EXPORTED عبر ContextCompat يمنع أي تطبيق آخر مثبّت
         // بنفس الجهاز من إرسال بث مزوّر باسم BUBBLE_TAPPED (كان يعمل على
