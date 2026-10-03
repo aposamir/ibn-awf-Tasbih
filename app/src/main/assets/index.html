@@ -1519,9 +1519,24 @@
     function hitTotal(amount = 1){
       const weekKey = getCurrentWeekKey();
       if(isFirebaseReady && currentUser){
-        atomicCountUpdate(currentUser, amount, weekKey, false).catch(() => {
-          saveToOfflineQueue('tap', amount, currentUser, weekKey);
-          showToast('📶 تعذّر الإرسال؛ تم حفظ العد محلياً للمزامنة');
+        atomicCountUpdate(currentUser, amount, weekKey, false).catch((err) => {
+          const code = String((err && err.code) || '').toLowerCase();
+          if(code.includes('permission')){
+            showToast('❌ رفضت قاعدة البيانات هذه الضغطة');
+            return;
+          }
+          // Do not blindly replay an online write after an ambiguous network
+          // failure: Firebase may already have committed it. Replaying it could
+          // double-count the same tap. Offline taps are still queued normally
+          // when the app knows it is disconnected before sending.
+          showToast('⚠️ تعذر تأكيد ضغطة أثناء انقطاع مفاجئ بالشبكة؛ لن نكرر إرسالها تلقائياً لتجنب العد المزدوج', 5500);
+          setTimeout(() => {
+            if(isFirebaseReady){
+              loadTotalFromFirebase();
+              loadLeaderboardFromFirebase();
+              loadAllTimeTotal();
+            }
+          }, 2500);
         });
       } else {
         saveToOfflineQueue('tap', amount, currentUser, weekKey);
