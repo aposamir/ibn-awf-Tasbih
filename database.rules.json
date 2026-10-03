@@ -25,7 +25,7 @@
         ".validate": "$week.matches(/^week_[0-9]{1,2}_20[0-9]{2}$/)",
         "$user": {
           ".validate": "$user.length >= 1 && $user.length <= 30",
-          ".write": "auth != null && auth.token.admin === true || (newData.isNumber() && newData.val() >= (data.exists() ? data.val() : 0) && newData.val() <= (data.exists() ? data.val() : 0) + 99999)"
+          ".write": "auth != null && auth.token.admin === true || (newData.isNumber() && newData.val() >= (data.exists() ? data.val() : 0) && newData.val() <= 99999 && newData.val() <= (data.exists() ? data.val() : 0) + 99999)"
         }
       }
     },
