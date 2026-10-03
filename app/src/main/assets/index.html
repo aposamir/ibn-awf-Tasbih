@@ -1636,16 +1636,15 @@
     function hitTotal(amount = 1){
       const weekKey = getCurrentWeekKey();
       if(isFirebaseReady && currentUser){
-        atomicCountUpdate(currentUser, amount, weekKey, false).catch((err) => {
+        return atomicCountUpdate(currentUser, amount, weekKey, false).then(() => true).catch((err) => {
           const code = String((err && err.code) || '').toLowerCase();
           if(code.includes('permission')){
             showToast('❌ رفضت قاعدة البيانات هذه الضغطة');
-            return;
+            return false;
           }
-          // Do not blindly replay an online write after an ambiguous network
-          // failure: Firebase may already have committed it. Replaying it could
-          // double-count the same tap. Offline taps are still queued normally
-          // when the app knows it is disconnected before sending.
+          // The outcome of an online write can be ambiguous after a sudden
+          // network failure. Normal UI taps are not blindly replayed because
+          // Firebase may already have committed them.
           showToast('⚠️ تعذر تأكيد ضغطة أثناء انقطاع مفاجئ بالشبكة؛ لن نكرر إرسالها تلقائياً لتجنب العد المزدوج', 5500);
           setTimeout(() => {
             if(isFirebaseReady){
@@ -1654,13 +1653,16 @@
               loadAllTimeTotal();
             }
           }, 2500);
+          return false;
         });
-      } else {
-        saveToOfflineQueue('tap', amount, currentUser, weekKey);
-        total += amount;
-        try { localStorage.setItem('offline_total', String(total)); } catch(e) {}
-        render();
       }
+
+      if(!currentUser) return Promise.resolve(false);
+      saveToOfflineQueue('tap', amount, currentUser, weekKey);
+      total += amount;
+      try { localStorage.setItem('offline_total', String(total)); } catch(e) {}
+      render();
+      return Promise.resolve(true);
     }
 
     function loadLeaderboardFromFirebase(){
@@ -1757,6 +1759,38 @@
       if(addToTotal){
         hitTotal(1);
       }
+      incrementPersonal();
+      saveSessionState();
+      return true;
+    }
+
+    async function nativeBubbleTapAsync(){
+      if(addToTotal && !currentUser) return false;
+
+      // For shared salawat, do not acknowledge the native pending tap until
+      // Firebase confirms the write or the tap is durably queued offline.
+      if(addToTotal){
+        const accepted = await hitTotal(1);
+        if(!accepted) return false;
+      }
+
+      current++;
+      if(window.AndroidBridge && typeof AndroidBridge.getNativeBubbleCount === 'function'){
+        try {
+          const nativeCount = Number(AndroidBridge.getNativeBubbleCount());
+          if(Number.isFinite(nativeCount) && nativeCount >= 0) bubbleCount = nativeCount;
+        } catch(e) {}
+      }
+      saveBubbleCount();
+      vibrate(12);
+
+      if(!isInfinite && current >= activeTarget){
+        cyclesThisSession++;
+        vibrate([40,30,40,30,80]);
+        showToast('✅ أتممت ' + activeTarget + ' – ' + activeDhikr);
+        current = 0;
+      }
+      render();
       incrementPersonal();
       saveSessionState();
       return true;
@@ -1922,6 +1956,7 @@
     // without incrementing the bubble display a second time.
     window.androidTap = () => tap(false);
     window.androidBubbleTap = () => tap(true);
+    window.androidBubbleTapAsync = nativeBubbleTapAsync;
     window.getCurrentParticipantName = () => currentUser || '';
   })();
 </script>
