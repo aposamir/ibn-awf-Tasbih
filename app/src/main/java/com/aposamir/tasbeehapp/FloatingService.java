@@ -15,6 +15,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -94,6 +95,15 @@ public class FloatingService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // START_STICKY can recreate this service after the user has revoked
+        // overlay permission. Never call WindowManager.addView without checking.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            getSharedPreferences("bubble_prefs", MODE_PRIVATE)
+                    .edit().putBoolean("bubble_enabled", false).apply();
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
         double scale = DEFAULT_SCALE;
         if (intent != null && intent.hasExtra("scale")) {
             scale = intent.getDoubleExtra("scale", DEFAULT_SCALE);
@@ -165,7 +175,14 @@ public class FloatingService extends Service {
         params.y = 100;
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        windowManager.addView(floatingView, params);
+        try {
+            windowManager.addView(floatingView, params);
+        } catch (SecurityException | WindowManager.BadTokenException e) {
+            floatingView = null;
+            bubbleCounter = null;
+            stopSelf();
+            return;
+        }
 
         applyVisualScale(scale);
 
