@@ -1262,7 +1262,14 @@
         return;
       }
 
+      // Detach user-scoped listeners before switching identity so a late
+      // callback from the previous name cannot briefly overwrite the new UI.
+      if(currentWeeklyRef){ currentWeeklyRef.off(); currentWeeklyRef = null; }
+      if(allTimeTotalRef){ allTimeTotalRef.off(); allTimeTotalRef = null; }
+
       currentUser = name;
+      weeklyManualTotal = 0;
+      allTimeTotalValue.textContent = '0';
       try { localStorage.setItem(USER_KEY, name); } catch(e) {}
       showUserNameBadge(name);
       showToast('✅ تم حفظ الاسم: ' + name);
