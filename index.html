@@ -1373,8 +1373,23 @@
           render();
           showToast('✅ تمت إضافة ' + val.toLocaleString('en-US'));
           manualInput.value = '';
-        }).catch(() => {
-          showToast('❌ لم تُحفظ الإضافة. لم يتم تغيير أي رصيد؛ حاول مرة أخرى', 4500);
+        }).catch((err) => {
+          const code = String((err && err.code) || '').toLowerCase();
+          if(code.includes('permission')){
+            showToast('❌ رفضت قاعدة البيانات الإضافة ولم يتغير الرصيد', 4500);
+          } else {
+            // A network failure can happen after Firebase has already accepted
+            // the atomic update. Do not tell the user to repeat the addition:
+            // refresh the authoritative counters when connectivity returns.
+            showToast('⚠️ تعذر تأكيد نتيجة الإضافة. لا تعِدها الآن؛ سيتم التحقق من الرصيد تلقائياً عند عودة الاتصال', 6500);
+            setTimeout(() => {
+              if(isFirebaseReady){
+                loadWeeklyManualTotal();
+                loadAllTimeTotal();
+                loadTotalFromFirebase();
+              }
+            }, 2500);
+          }
         }).finally(() => {
           manualAddBtn.disabled = false;
         });
