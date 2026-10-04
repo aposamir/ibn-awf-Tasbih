@@ -1,5 +1,5 @@
 name: Build Android APK
-# Builds the APK and publishes it as TasbeehApp-release.zip (the link shared publicly)
+# Builds the APK and publishes it as ibn-awf-Tasp.zip (TasbeehApp-release.zip kept for old shared links)
 
 on:
   push:
