@@ -36,6 +36,8 @@ public class FloatingService extends Service {
     private View floatingView;
     private TextView bubbleCounter;
     private int count = 0;
+    private double currentScale = DEFAULT_SCALE;
+    private boolean receiverRegistered = false;
     private WindowManager.LayoutParams params;
     private final Handler pollHandler = new Handler(Looper.getMainLooper());
     private Runnable pollRunnable;
@@ -131,12 +133,13 @@ public class FloatingService extends Service {
             scale = intent.getDoubleExtra("scale", DEFAULT_SCALE);
         }
 
+        currentScale = scale;
         if (floatingView == null) {
-            createFloatingBubble(scale);
-            startPolling();
+            createFloatingBubble(scale, true);
         } else {
             applyScale(scale);
         }
+        if (pollRunnable == null) startPolling();
 
         return START_STICKY;
     }
@@ -151,6 +154,9 @@ public class FloatingService extends Service {
         pollRunnable = new Runnable() {
             @Override
             public void run() {
+                // Watchdog: if the system removed the overlay while the service is
+                // still alive (the notification is still showing), put it back.
+                ensureBubbleAttached();
                 SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
                 int savedCount = prefs.getInt("bubble_count", count);
                 if (savedCount != count) {
@@ -170,9 +176,38 @@ public class FloatingService extends Service {
         }
     }
 
-    private void createFloatingBubble(double scale) {
+    private void ensureBubbleAttached() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) return;
+        if (floatingView == null) {
+            createFloatingBubble(currentScale, false);
+            return;
+        }
+        if (windowManager != null && params != null && !floatingView.isAttachedToWindow()) {
+            try {
+                windowManager.addView(floatingView, params);
+                applyVisualScale(currentScale);
+            } catch (RuntimeException ignored) {
+            }
+        }
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        // The user swiped the app away: make sure the bubble is still on screen.
+        pollHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() { ensureBubbleAttached(); }
+        }, 500);
+        pollHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() { ensureBubbleAttached(); }
+        }, 3000);
+    }
+
+    private void createFloatingBubble(double scale, boolean stopOnFailure) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            stopSelf();
+            if (stopOnFailure) stopSelf();
             return;
         }
         SharedPreferences prefsInit = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
@@ -206,18 +241,21 @@ public class FloatingService extends Service {
         } catch (SecurityException | WindowManager.BadTokenException | IllegalStateException e) {
             floatingView = null;
             bubbleCounter = null;
-            stopSelf();
+            if (stopOnFailure) stopSelf();
             return;
         }
 
         applyVisualScale(scale);
 
-        ContextCompat.registerReceiver(
-                this,
-                webReceiver,
-                new IntentFilter("WEB_UPDATED"),
-                ContextCompat.RECEIVER_NOT_EXPORTED
-        );
+        if (!receiverRegistered) {
+            ContextCompat.registerReceiver(
+                    this,
+                    webReceiver,
+                    new IntentFilter("WEB_UPDATED"),
+                    ContextCompat.RECEIVER_NOT_EXPORTED
+            );
+            receiverRegistered = true;
+        }
 
         floatingView.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
@@ -285,6 +323,7 @@ public class FloatingService extends Service {
     public void onDestroy() {
         super.onDestroy();
         stopPolling();
+        pollHandler.removeCallbacksAndMessages(null);
         try {
             stopForeground(true);
         } catch (RuntimeException ignored) {
@@ -296,9 +335,12 @@ public class FloatingService extends Service {
             }
         }
         floatingView = null;
-        try {
-            unregisterReceiver(webReceiver);
-        } catch (IllegalArgumentException e) {
+        if (receiverRegistered) {
+            try {
+                unregisterReceiver(webReceiver);
+            } catch (IllegalArgumentException e) {
+            }
+            receiverRegistered = false;
         }
     }
 }
