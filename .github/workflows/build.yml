@@ -66,17 +66,20 @@ jobs:
           cd app/build/outputs/apk/release/
           APK_FILE="$(find . -maxdepth 1 -type f -name '*.apk' | head -n 1)"
           mv "$APK_FILE" ibn-awf-Tasp.apk
-          zip ibn-awf-Tasp.zip ibn-awf-Tasp.apk
+          rm -f ibn-awf-Tasp.zip
+          zip -0 ibn-awf-Tasp.zip ibn-awf-Tasp.apk
+          unzip -t ibn-awf-Tasp.zip
 
       - name: Publish ZIP to GitHub Pages source
         if: github.event_name != 'pull_request'
         run: |
           mkdir -p docs/download
           cp app/build/outputs/apk/release/ibn-awf-Tasp.zip docs/download/ibn-awf-Tasp.zip
+          cp app/build/outputs/apk/release/ibn-awf-Tasp.zip docs/download/ibn-awf-Tasp-v258.zip
           cp app/build/outputs/apk/release/ibn-awf-Tasp.apk docs/download/ibn-awf-Tasp.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/download/ibn-awf-Tasp.zip docs/download/ibn-awf-Tasp.apk
+          git add docs/download/ibn-awf-Tasp.zip docs/download/ibn-awf-Tasp-v258.zip docs/download/ibn-awf-Tasp.apk
           git commit -m "Publish latest Android ZIP to Pages" || true
           git push
 
