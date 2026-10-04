@@ -1002,10 +1002,13 @@
       const canUseNative = hasPermission && window.AndroidBridge && typeof AndroidBridge.showOverlayBubble === 'function';
       const targetType = canUseNative ? 'native' : 'inapp';
 
-      hideAllBubbleUI();
+      // Do not stop the native service just to start it again: that stop/start
+      // race made Android kill the app (startForegroundService without startForeground).
       if(targetType === 'native'){
+        hideInAppBubbleUI();
         AndroidBridge.showOverlayBubble(NATIVE_BUBBLE_SCALE);
       } else {
+        hideAllBubbleUI();
         showInAppBubbleUI();
       }
       bubbleType = targetType;

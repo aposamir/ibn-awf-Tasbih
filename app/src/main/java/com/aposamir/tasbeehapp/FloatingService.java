@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat;
 
 public class FloatingService extends Service {
 
+    public static final String ACTION_STOP = "com.aposamir.tasbeehapp.STOP_BUBBLE";
     private static final String CHANNEL_ID = "tasbeeh_floating_counter";
     private static final int NOTIFICATION_ID = 2401;
     private static final double DEFAULT_SCALE = 2.0 / 3.0;
@@ -57,43 +58,56 @@ public class FloatingService extends Service {
     // MIUI-style task killers keep the floating counter alive after the app is
     // closed. Returns false if the system refused; the service then stops itself.
     private boolean ensureForeground() {
+        Notification notification;
         try {
-            NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager != null) {
-                NotificationChannel channel = new NotificationChannel(
-                        CHANNEL_ID,
-                        "عداد المسبحة العائم",
-                        NotificationManager.IMPORTANCE_LOW);
-                channel.setDescription("يبقي عداد المسبحة العائم فعالاً أثناء استخدام التطبيقات الأخرى");
-                channel.setShowBadge(false);
-                manager.createNotificationChannel(channel);
+            notification = buildNotification(R.mipmap.ic_launcher);
+        } catch (RuntimeException e) {
+            try {
+                notification = buildNotification(android.R.drawable.ic_dialog_info);
+            } catch (RuntimeException e2) {
+                stopSelf();
+                return false;
             }
-
-            Intent openApp = new Intent(this, MainActivity.class);
-            openApp.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
-            }
-            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, openApp, pendingFlags);
-
-            Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                    ? new Notification.Builder(this, CHANNEL_ID)
-                    : new Notification.Builder(this);
-            Notification notification = builder
-                    .setSmallIcon(R.mipmap.ic_launcher)
-                    .setContentTitle("مسبحة جامع عبد الرحمن بن عوف")
-                    .setContentText("العداد العائم يعمل")
-                    .setContentIntent(pendingIntent)
-                    .setOngoing(true)
-                    .build();
-
+        }
+        try {
             startForeground(NOTIFICATION_ID, notification);
             return true;
         } catch (RuntimeException e) {
             stopSelf();
             return false;
         }
+    }
+
+    private Notification buildNotification(int smallIcon) {
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager != null) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "عداد المسبحة العائم",
+                    NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription("يبقي عداد المسبحة العائم فعالاً أثناء استخدام التطبيقات الأخرى");
+            channel.setShowBadge(false);
+            manager.createNotificationChannel(channel);
+        }
+
+        Intent openApp = new Intent(this, MainActivity.class);
+        openApp.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, openApp, pendingFlags);
+
+        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? new Notification.Builder(this, CHANNEL_ID)
+                : new Notification.Builder(this);
+        return builder
+                .setSmallIcon(smallIcon)
+                .setContentTitle("مسبحة جامع عبد الرحمن بن عوف")
+                .setContentText("العداد العائم يعمل")
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .build();
     }
 
     @Override
@@ -103,6 +117,14 @@ public class FloatingService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         // Every startForegroundService() call must be answered with startForeground().
         if (!ensureForeground()) return START_NOT_STICKY;
+
+        // Stop requests travel through the same intent queue as start requests, so a
+        // pending startForegroundService() is always answered before the service stops.
+        if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            stopForeground(true);
+            stopSelf();
+            return START_NOT_STICKY;
+        }
 
         double scale = DEFAULT_SCALE;
         if (intent != null && intent.hasExtra("scale")) {
