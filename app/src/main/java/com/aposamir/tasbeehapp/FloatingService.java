@@ -11,6 +11,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -90,6 +91,10 @@ public class FloatingService extends Service {
     }
 
     private void createFloatingBubble(double scale) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            stopSelf();
+            return;
+        }
         SharedPreferences prefsInit = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
         count = prefsInit.getInt("bubble_count", 0);
 
@@ -116,7 +121,14 @@ public class FloatingService extends Service {
         params.y = 100;
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        windowManager.addView(floatingView, params);
+        try {
+            windowManager.addView(floatingView, params);
+        } catch (SecurityException | WindowManager.BadTokenException | IllegalStateException e) {
+            floatingView = null;
+            bubbleCounter = null;
+            stopSelf();
+            return;
+        }
 
         applyVisualScale(scale);
 
@@ -148,7 +160,11 @@ public class FloatingService extends Service {
                         }
                         params.x = initialX + (int) (event.getRawX() - initialTouchX);
                         params.y = initialY + (int) (event.getRawY() - initialTouchY);
-                        windowManager.updateViewLayout(floatingView, params);
+                        try {
+                            windowManager.updateViewLayout(floatingView, params);
+                        } catch (SecurityException | IllegalArgumentException | IllegalStateException e) {
+                            stopSelf();
+                        }
                         return true;
                     case MotionEvent.ACTION_UP:
                         if (isClick) {
@@ -190,7 +206,10 @@ public class FloatingService extends Service {
         super.onDestroy();
         stopPolling();
         if (floatingView != null && windowManager != null) {
-            windowManager.removeView(floatingView);
+            try {
+                windowManager.removeView(floatingView);
+            } catch (IllegalArgumentException | IllegalStateException ignored) {
+            }
         }
         floatingView = null;
         try {
