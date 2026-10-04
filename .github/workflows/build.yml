@@ -1,5 +1,5 @@
 name: Build Android APK
-# Builds the APK and publishes it as ibn-awf-Tasp.zip (TasbeehApp-release.zip kept for old shared links)
+# Builds the APK and publishes it as ibn-awf-Tasbih.zip (old file names kept for previously shared links)
 
 on:
   push:
@@ -65,33 +65,33 @@ jobs:
         run: |
           cd app/build/outputs/apk/release/
           APK_FILE="$(find . -maxdepth 1 -type f -name '*.apk' | head -n 1)"
-          mv "$APK_FILE" ibn-awf-Tasp.apk
-          rm -f ibn-awf-Tasp.zip
-          zip -0 ibn-awf-Tasp.zip ibn-awf-Tasp.apk
-          unzip -t ibn-awf-Tasp.zip
+          mv "$APK_FILE" ibn-awf-Tasbih.apk
+          rm -f ibn-awf-Tasbih.zip
+          zip -0 ibn-awf-Tasbih.zip ibn-awf-Tasbih.apk
+          unzip -t ibn-awf-Tasbih.zip
           # الاسم القديم المنشور في رسائل المشاركة — يجب أن يبقى متاحاً دائماً
-          cp ibn-awf-Tasp.zip TasbeehApp-release.zip
+          cp ibn-awf-Tasbih.zip TasbeehApp-release.zip
+          cp ibn-awf-Tasbih.zip ibn-awf-Tasp.zip
 
       - name: Publish ZIP to GitHub Pages source
         if: github.event_name != 'pull_request'
         run: |
           mkdir -p docs/download
-          cp app/build/outputs/apk/release/ibn-awf-Tasp.zip docs/download/ibn-awf-Tasp.zip
-          cp app/build/outputs/apk/release/ibn-awf-Tasp.zip docs/download/ibn-awf-Tasp-v258.zip
-          cp app/build/outputs/apk/release/ibn-awf-Tasp.apk docs/download/ibn-awf-Tasp.apk
+          cp app/build/outputs/apk/release/ibn-awf-Tasbih.zip docs/download/ibn-awf-Tasbih.zip
+          cp app/build/outputs/apk/release/ibn-awf-Tasbih.apk docs/download/ibn-awf-Tasbih.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/download/ibn-awf-Tasp.zip docs/download/ibn-awf-Tasp-v258.zip docs/download/ibn-awf-Tasp.apk
+          git add docs/download/ibn-awf-Tasbih.zip docs/download/ibn-awf-Tasbih.apk
           git commit -m "Publish latest Android ZIP to Pages" || true
           git push
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ibn-awf-Tasp
+          name: ibn-awf-Tasbih
           path: |
-            app/build/outputs/apk/release/ibn-awf-Tasp.apk
-            app/build/outputs/apk/release/ibn-awf-Tasp.zip
+            app/build/outputs/apk/release/ibn-awf-Tasbih.apk
+            app/build/outputs/apk/release/ibn-awf-Tasbih.zip
 
       - name: Remove previous release so only the newest build remains
         if: github.event_name != 'pull_request'
@@ -106,8 +106,9 @@ jobs:
           tag_name: latest
           name: "أحدث نسخة"
           files: |
-            app/build/outputs/apk/release/TasbeehApp-release.zip
+            app/build/outputs/apk/release/ibn-awf-Tasbih.zip
             app/build/outputs/apk/release/ibn-awf-Tasp.zip
+            app/build/outputs/apk/release/TasbeehApp-release.zip
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
