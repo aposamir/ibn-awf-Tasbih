@@ -1,10 +1,12 @@
 package com.aposamir.tasbeehapp;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -122,13 +124,30 @@ public class MainActivity extends AppCompatActivity {
             }
             Intent intent = new Intent(MainActivity.this, FloatingService.class);
             intent.putExtra("scale", scale);
-            startService(intent);
+            requestNotificationPermissionOnce();
+            ContextCompat.startForegroundService(MainActivity.this, intent);
         }
 
         @JavascriptInterface
         public void hideBubble() {
             stopService(new Intent(MainActivity.this, FloatingService.class));
         }
+    }
+
+    // Android 13+: ask once so the small "bubble is running" notification is visible.
+    // The bubble still works if the user declines.
+    private void requestNotificationPermissionOnce() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
+        SharedPreferences prefs = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+        if (prefs.getBoolean("notification_permission_asked", false)) return;
+        prefs.edit().putBoolean("notification_permission_asked", true).apply();
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
+            }
+        });
     }
 
     @Override

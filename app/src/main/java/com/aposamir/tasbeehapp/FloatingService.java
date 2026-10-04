@@ -1,5 +1,9 @@
 package com.aposamir.tasbeehapp;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -22,6 +26,8 @@ import androidx.core.content.ContextCompat;
 
 public class FloatingService extends Service {
 
+    private static final String CHANNEL_ID = "tasbeeh_floating_counter";
+    private static final int NOTIFICATION_ID = 2401;
     private static final double DEFAULT_SCALE = 2.0 / 3.0;
     private static final long POLL_INTERVAL_MS = 1500;
 
@@ -42,10 +48,62 @@ public class FloatingService extends Service {
     };
 
     @Override
+    public void onCreate() {
+        super.onCreate();
+        ensureForeground();
+    }
+
+    // Runs as a foreground service (small ongoing notification) so Android and
+    // MIUI-style task killers keep the floating counter alive after the app is
+    // closed. Returns false if the system refused; the service then stops itself.
+    private boolean ensureForeground() {
+        try {
+            NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager != null) {
+                NotificationChannel channel = new NotificationChannel(
+                        CHANNEL_ID,
+                        "عداد المسبحة العائم",
+                        NotificationManager.IMPORTANCE_LOW);
+                channel.setDescription("يبقي عداد المسبحة العائم فعالاً أثناء استخدام التطبيقات الأخرى");
+                channel.setShowBadge(false);
+                manager.createNotificationChannel(channel);
+            }
+
+            Intent openApp = new Intent(this, MainActivity.class);
+            openApp.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, openApp, pendingFlags);
+
+            Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? new Notification.Builder(this, CHANNEL_ID)
+                    : new Notification.Builder(this);
+            Notification notification = builder
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setContentTitle("مسبحة جامع عبد الرحمن بن عوف")
+                    .setContentText("العداد العائم يعمل")
+                    .setContentIntent(pendingIntent)
+                    .setOngoing(true)
+                    .build();
+
+            startForeground(NOTIFICATION_ID, notification);
+            return true;
+        } catch (RuntimeException e) {
+            stopSelf();
+            return false;
+        }
+    }
+
+    @Override
     public IBinder onBind(Intent intent) { return null; }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // Every startForegroundService() call must be answered with startForeground().
+        if (!ensureForeground()) return START_NOT_STICKY;
+
         double scale = DEFAULT_SCALE;
         if (intent != null && intent.hasExtra("scale")) {
             scale = intent.getDoubleExtra("scale", DEFAULT_SCALE);
@@ -205,6 +263,10 @@ public class FloatingService extends Service {
     public void onDestroy() {
         super.onDestroy();
         stopPolling();
+        try {
+            stopForeground(true);
+        } catch (RuntimeException ignored) {
+        }
         if (floatingView != null && windowManager != null) {
             try {
                 windowManager.removeView(floatingView);
