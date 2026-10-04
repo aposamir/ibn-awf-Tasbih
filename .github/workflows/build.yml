@@ -68,6 +68,17 @@ jobs:
           mv "$APK_FILE" ibn-awf-Tasp.apk
           zip ibn-awf-Tasp.zip ibn-awf-Tasp.apk
 
+      - name: Publish ZIP to GitHub Pages source
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p docs/download
+          cp app/build/outputs/apk/release/ibn-awf-Tasp.zip docs/download/ibn-awf-Tasp.zip
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/download/ibn-awf-Tasp.zip
+          git commit -m "Publish latest Android ZIP to Pages" || true
+          git push
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
