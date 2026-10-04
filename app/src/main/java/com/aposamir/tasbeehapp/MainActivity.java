@@ -67,11 +67,58 @@ public class MainActivity extends AppCompatActivity {
     private BroadcastReceiver bubbleReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            // The live path counts this tap, so it is no longer pending.
+            SharedPreferences p = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+            synchronized (FloatingService.PENDING_LOCK) {
+                int pending = p.getInt("pending_taps", 0);
+                if (pending > 0) p.edit().putInt("pending_taps", pending - 1).commit();
+            }
             webView.evaluateJavascript("javascript:androidBubbleTap();", null);
         }
     };
 
     public class WebAppInterface {
+
+        @JavascriptInterface
+        public void setCurrentUserName(String name) {
+            getSharedPreferences("bubble_prefs", MODE_PRIVATE).edit()
+                    .putString("current_user", name == null ? "" : name).apply();
+        }
+
+        @JavascriptInterface
+        public void setSharedMode(boolean shared) {
+            getSharedPreferences("bubble_prefs", MODE_PRIVATE).edit()
+                    .putBoolean("shared_mode", shared).apply();
+        }
+
+        @JavascriptInterface
+        public int getPendingBubbleTapCount() {
+            return getSharedPreferences("bubble_prefs", MODE_PRIVATE).getInt("pending_taps", 0);
+        }
+
+        @JavascriptInterface
+        public String getPendingBubbleUser() {
+            return getSharedPreferences("bubble_prefs", MODE_PRIVATE).getString("pending_user", "");
+        }
+
+        // Atomically read and clear the pending taps; JS must replay them.
+        @JavascriptInterface
+        public int takePendingBubbleTaps() {
+            SharedPreferences p = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+            synchronized (FloatingService.PENDING_LOCK) {
+                int n = p.getInt("pending_taps", 0);
+                p.edit().putInt("pending_taps", 0).commit();
+                return n;
+            }
+        }
+
+        @JavascriptInterface
+        public void restorePendingBubbleTaps(int n) {
+            SharedPreferences p = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+            synchronized (FloatingService.PENDING_LOCK) {
+                p.edit().putInt("pending_taps", p.getInt("pending_taps", 0) + n).commit();
+            }
+        }
 
         @JavascriptInterface
         public int getNativeBubbleCount() {

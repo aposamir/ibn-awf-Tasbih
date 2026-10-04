@@ -293,6 +293,7 @@ public class FloatingService extends Service {
                                     .edit()
                                     .putInt("bubble_count", count)
                                     .apply();
+                            recordPendingTap();
                             updateCounterText();
 
                             // Notify the Activity when it is alive. JavaScript will
@@ -306,6 +307,23 @@ public class FloatingService extends Service {
                 return false;
             }
         });
+    }
+
+    static final Object PENDING_LOCK = new Object();
+
+    // Remember every shared-salawat tap so it can be added to the program's
+    // totals later if the app process was killed and cannot receive the live
+    // broadcast. MainActivity clears it when it handles the tap live.
+    private void recordPendingTap() {
+        SharedPreferences p = getSharedPreferences("bubble_prefs", MODE_PRIVATE);
+        synchronized (PENDING_LOCK) {
+            String user = p.getString("current_user", "");
+            if (!p.getBoolean("shared_mode", false) || user == null || user.isEmpty()) return;
+            String owner = p.getString("pending_user", "");
+            int pending = p.getInt("pending_taps", 0);
+            if (pending > 0 && !user.equals(owner)) return; // keep owner consistent
+            p.edit().putInt("pending_taps", pending + 1).putString("pending_user", user).commit();
+        }
     }
 
     private void applyVisualScale(double scale) {
