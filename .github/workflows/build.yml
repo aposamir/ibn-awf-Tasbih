@@ -73,9 +73,10 @@ jobs:
         run: |
           mkdir -p docs/download
           cp app/build/outputs/apk/release/ibn-awf-Tasp.zip docs/download/ibn-awf-Tasp.zip
+          cp app/build/outputs/apk/release/ibn-awf-Tasp.apk docs/download/ibn-awf-Tasp.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/download/ibn-awf-Tasp.zip
+          git add docs/download/ibn-awf-Tasp.zip docs/download/ibn-awf-Tasp.apk
           git commit -m "Publish latest Android ZIP to Pages" || true
           git push
 
