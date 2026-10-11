@@ -1050,6 +1050,7 @@
       if(bubbleEnabled) reconcileBubbleMode();
     });
 
+    const APP_BUILD = '2026.10.11-weekfix';
     const PROJECT_TIME_ZONE = 'Asia/Damascus';
 
     function serverNow(){
@@ -1059,15 +1060,30 @@
     function getDamascusDateParts(date = serverNow()){
       const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: PROJECT_TIME_ZONE,
+        hourCycle: 'h23',
         year: 'numeric',
         month: '2-digit',
-        day: '2-digit'
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
       }).formatToParts(date);
       const out = {};
       parts.forEach(part => {
         if(part.type !== 'literal') out[part.type] = Number(part.value);
       });
-      return { year: out.year, month: out.month, day: out.day };
+      return {
+        year: out.year, month: out.month, day: out.day,
+        hour: out.hour % 24, minute: out.minute, second: out.second
+      };
+    }
+
+    // Milliseconds until the next midnight in Damascus (when a new Saturday-based
+    // week can begin). Computed from server time so a wrong phone clock cannot shift it.
+    function msUntilNextDamascusMidnight(date = serverNow()){
+      const p = getDamascusDateParts(date);
+      const secondsToday = p.hour * 3600 + p.minute * 60 + p.second;
+      return Math.max(1000, (86400 - secondsToday) * 1000 - date.getMilliseconds());
     }
 
     // Calendar-only UTC dates are used internally so week arithmetic is immune
@@ -1121,15 +1137,41 @@
       lastRankOrder = [];
       isFirstLeadLoad = true;
 
-      if(currentUser) loadWeeklyManualTotal();
+      // Switch the personal weekly counter immediately (from the cached value of
+      // the new week, normally 0) instead of waiting for Firebase to answer.
+      if(currentUser){
+        weeklyManualTotal = getWeeklyManualTotalFromLocal(newWeekKey);
+        updateWeeklyLimitDisplay();
+        loadWeeklyManualTotal();
+      }
       if(isFirebaseReady) loadLeaderboardFromFirebase();
     }
 
-    setInterval(() => refreshWeekIfChanged(false), 60000);
+    // Fire exactly at the next Damascus midnight (+0.5s) so the new week starts
+    // at 00:00 and not up to a minute later; then re-arm for the following night.
+    let weekBoundaryTimer = null;
+    function scheduleWeekBoundaryCheck(){
+      if(weekBoundaryTimer) clearTimeout(weekBoundaryTimer);
+      weekBoundaryTimer = setTimeout(() => {
+        refreshWeekIfChanged(false);
+        scheduleWeekBoundaryCheck();
+      }, msUntilNextDamascusMidnight() + 500);
+    }
+    scheduleWeekBoundaryCheck();
+
+    // Safety nets: periodic check, plus re-check and re-arm whenever the app
+    // comes back to the foreground (timers can be paused while it is in the background).
+    setInterval(() => refreshWeekIfChanged(false), 15000);
     document.addEventListener('visibilitychange', () => {
-      if(document.visibilityState === 'visible') refreshWeekIfChanged(false);
+      if(document.visibilityState === 'visible'){
+        refreshWeekIfChanged(false);
+        scheduleWeekBoundaryCheck();
+      }
     });
-    window.addEventListener('focus', () => refreshWeekIfChanged(false));
+    window.addEventListener('focus', () => {
+      refreshWeekIfChanged(false);
+      scheduleWeekBoundaryCheck();
+    });
 
     function formatDateAr(d){
       return new Intl.DateTimeFormat('ar-EG', {
@@ -1753,6 +1795,10 @@
     function loadLeaderboardFromFirebase(){
       const weekKey = getCurrentWeekKey();
       activeWeekKey = weekKey;
+      // The heading must describe the week whose data this listener loads,
+      // not whatever week it happens to be when a Firebase update arrives.
+      const labelWeekStart = getWeekStartSaturday();
+      const labelWeekNumber = getWeekNumber();
       if(leadRef) leadRef.off();
       leadRef = database.ref('leaderboard/' + weekKey);
       leadRef.on('value', (s) => {
@@ -1787,11 +1833,12 @@
         });
         lastRankOrder = sorted.map(([name]) => name);
 
-        const satStart = getWeekStartSaturday();
+        const satStart = labelWeekStart;
         const friEnd = new Date(satStart);
         friEnd.setUTCDate(friEnd.getUTCDate() + 6);
-        weekInfo.textContent = '📅 الأسبوع ' + getWeekNumber() + ' - ' + satStart.getUTCFullYear() +
-          ' (من ' + formatDateAr(satStart) + ' إلى ' + formatDateAr(friEnd) + ')';
+        weekInfo.textContent = '📅 الأسبوع ' + labelWeekNumber + ' - ' + satStart.getUTCFullYear() +
+          ' (من ' + formatDateAr(satStart) + ' إلى ' + formatDateAr(friEnd) + ')' +
+          ' • ' + weekKey + ' • v' + APP_BUILD;
 
         if(sorted.length === 0){
           leaderboardBody.innerHTML = '<div class="leaderboard-empty">لا يوجد مشاركون هذا الأسبوع بعد</div>';
@@ -2000,6 +2047,9 @@
 
     database.ref('.info/serverTimeOffset').on('value', (snap) => {
       serverTimeOffsetMs = snap.val() || 0;
+      // The first taps may have used the phone clock before this arrived; re-evaluate the week.
+      refreshWeekIfChanged(false);
+      scheduleWeekBoundaryCheck();
     });
 
     tapBtn.addEventListener('click', tap);
